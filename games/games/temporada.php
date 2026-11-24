@@ -17,6 +17,15 @@
  * mentira: o resultado já existe e não muda se a aba fechar no meio — o que
  * a pessoa controla é a velocidade com que ela vê acontecer.
  *
+ * ── A CARA É DE TRANSMISSÃO, de propósito ────────────────────────────
+ * Segundo pedido na mesma direção (24/11): "quero um design de jogo bem
+ * bonito, uma experiência legal, desde a página de escolher o time". A
+ * linguagem visual daqui é de pacote gráfico de TV esportiva: tudo que é
+ * título vive numa placa inclinada, os números grandes são Oswald itálico,
+ * o fundo tem o círculo central de uma quadra sob um spotlight, e a cor do
+ * time escolhido invade a tela. Nada disso é decoração aleatória — é o
+ * vocabulário que a liga já conhece do 2K e das transmissões.
+ *
  * ── O MOTOR É O DO SIMULADOR, A CASA É O /games ───────────────────────
  * Simulação por posses, classificação, play-in, playoffs e líderes vêm de
  * /simulador/src. Mas o jogo é daqui: tela própria, card no hub, save próprio
@@ -101,266 +110,432 @@ $cor = fn($c, $padrao = '#334155') => preg_match('/^#[0-9a-f]{6}$/i', trim((stri
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Minha Temporada · FBA</title>
-<meta name="theme-color" content="#0a0e17">
+<meta name="theme-color" content="#04060c">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+/* ═════════════════════════════════════════════════════════════════════
+   O PACOTE GRÁFICO. Três regras valem pra página inteira:
+   1. Título vive numa PLACA INCLINADA (skew -10°) — é a assinatura.
+   2. Número grande é Oswald; texto de apoio é Inter; grito é Barlow
+      Condensed itálico em caixa alta.
+   3. A cor do time manda. O vermelho FBA é da casa; o resto da cor vem
+      do escudo de quem está em quadra.
+   ═════════════════════════════════════════════════════════════════════ */
 :root{
-  --bg:#070a11; --bg2:#0b0f19; --card:#111725; --card2:#182031; --linha:#242e42;
-  --txt:#eaf0fb; --txt2:#95a2bb; --txt3:#5f6b85;
-  --fba:#fc0025; --ok:#2bd97c; --perda:#f8615a; --ouro:#f5c842;
-  --casa:#3b82f6; --fora:#64748b;
+  --bg:#04060c; --card:#0d1322; --card2:#141c30; --linha:#1f2a44; --linha2:#2b3a5e;
+  --txt:#edf2fc; --txt2:#93a1bd; --txt3:#5b688a;
+  --fba:#fc0025; --fba2:#a3001a;
+  --ok:#2bd97c; --perda:#f8615a; --ouro:#f5c842;
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--txt)}
 body{font-family:Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;
-     background-image:radial-gradient(1100px 520px at 50% -140px,#15203a 0%,transparent 70%)}
+     min-height:100vh;overflow-x:hidden}
+
+/* ── A QUADRA NO FUNDO ─────────────────────────────────────────────────
+   Um spotlight descendo sobre o círculo central. Os anéis são gradientes
+   radiais fixos (nenhuma imagem), e as listras diagonais quase invisíveis
+   tiram o aspecto de cor chapada que fazia tudo parecer painel de admin. */
+body::before{content:'';position:fixed;inset:0;z-index:-2;background:
+  radial-gradient(1000px 540px at 50% -220px, rgba(252,0,37,.14), transparent 62%),
+  radial-gradient(1300px 700px at 85% 115%, rgba(37,99,235,.08), transparent 55%),
+  radial-gradient(circle 300px at 50% -40px, transparent 297px, rgba(255,255,255,.05) 298px, rgba(255,255,255,.05) 300px, transparent 301px),
+  radial-gradient(circle 470px at 50% -40px, transparent 467px, rgba(255,255,255,.035) 468px, rgba(255,255,255,.035) 470px, transparent 471px),
+  radial-gradient(circle 650px at 50% -40px, transparent 647px, rgba(255,255,255,.022) 648px, rgba(255,255,255,.022) 650px, transparent 651px),
+  var(--bg)}
+body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:
+  repeating-linear-gradient(115deg, transparent 0 52px, rgba(255,255,255,.012) 52px 54px)}
+
 a{color:inherit;text-decoration:none}
 button{font-family:inherit}
-.cond{font-family:'Barlow Condensed',Inter,sans-serif;letter-spacing:.4px;text-transform:uppercase}
-.placar-font{font-family:Oswald,'Barlow Condensed',sans-serif;font-variant-numeric:tabular-nums}
+img{-webkit-user-drag:none}
 
-/* ───────── topbar ───────── */
-.topbar{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#070a11e8;
-        backdrop-filter:blur(10px);border-bottom:1px solid var(--linha);position:sticky;top:0;z-index:40}
-.topbar .voltar{width:36px;height:36px;display:grid;place-items:center;border-radius:11px;
-                background:var(--card2);color:var(--txt2);flex:none}
-.topbar .marca{font-family:'Barlow Condensed',sans-serif;font-size:23px;letter-spacing:.6px;
-               text-transform:uppercase;flex:1;font-weight:700}
-.topbar .marca em{color:var(--fba);font-style:normal}
-.saldo{display:flex;align-items:center;gap:6px;background:#f5c84218;border:1px solid #f5c84240;
-       padding:6px 12px;border-radius:99px;font-weight:800;font-size:14px;color:var(--ouro);flex:none}
+/* ── topbar ── */
+.topbar{display:flex;align-items:center;gap:13px;padding:11px 16px;position:sticky;top:0;z-index:40;
+        background:rgba(4,6,12,.86);backdrop-filter:blur(12px);border-bottom:1px solid var(--linha)}
+.topbar .voltar{width:37px;height:37px;display:grid;place-items:center;border-radius:11px;flex:none;
+        background:var(--card2);color:var(--txt2);border:1px solid var(--linha);transition:.15s}
+.topbar .voltar:hover{color:#fff;border-color:var(--linha2)}
+.marca{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.marca .slab{background:linear-gradient(135deg,var(--fba),var(--fba2));transform:skewX(-10deg);
+       padding:5px 13px;border-radius:3px;box-shadow:0 4px 16px -4px rgba(252,0,37,.55);flex:none}
+.marca .slab b{display:inline-block;transform:skewX(10deg);font-family:'Barlow Condensed',sans-serif;
+       font-style:italic;font-weight:700;font-size:17px;letter-spacing:1.5px;color:#fff}
+.marca .resto{font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:700;
+       font-size:21px;letter-spacing:1.6px;text-transform:uppercase;white-space:nowrap;
+       overflow:hidden;text-overflow:ellipsis}
+.saldo{display:flex;align-items:center;gap:7px;flex:none;transform:skewX(-10deg);
+       background:linear-gradient(135deg,#2a230a,#1b1707);border:1px solid #f5c84245;
+       padding:7px 14px;border-radius:4px;color:var(--ouro);font-weight:800;font-size:13.5px}
+.saldo>*{transform:skewX(10deg)}
 
-.wrap{max-width:1080px;margin:0 auto;padding:16px 14px 70px}
-.painel{background:var(--card);border:1px solid var(--linha);border-radius:18px;padding:16px;margin-bottom:14px}
-.painel > h2{font-family:'Barlow Condensed',sans-serif;font-size:20px;text-transform:uppercase;
-             letter-spacing:.7px;margin:0 0 13px;display:flex;align-items:center;gap:9px;font-weight:700}
-.painel > h2 .sub{font-family:Inter,sans-serif;font-size:11.5px;font-weight:600;color:var(--txt3);
-                  text-transform:none;letter-spacing:0;margin-left:auto;text-align:right}
-.dim{color:var(--txt2);font-size:13px;line-height:1.6}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 14px 110px;position:relative}
+
+/* ── títulos de seção: a placa inclinada ── */
+.sec{display:flex;align-items:center;gap:13px;margin:30px 2px 14px}
+.sec:first-child{margin-top:4px}
+.sec .tag{background:linear-gradient(135deg,var(--fba),var(--fba2));transform:skewX(-10deg);
+     padding:7px 17px;border-radius:3px;box-shadow:0 5px 20px -6px rgba(252,0,37,.6);flex:none}
+.sec .tag span{display:inline-block;transform:skewX(10deg);font-family:'Barlow Condensed',sans-serif;
+     font-style:italic;font-weight:700;font-size:17.5px;letter-spacing:1.6px;text-transform:uppercase;color:#fff}
+.sec .tag.ouro{background:linear-gradient(135deg,#f5c842,#b98c12);box-shadow:0 5px 20px -6px rgba(245,200,66,.45)}
+.sec .tag.ouro span{color:#201703}
+.sec::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--linha2),transparent)}
+.sec .sub{flex:none;font-size:11px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:1px;text-align:right}
+
+/* ── painéis ── */
+.painel{background:linear-gradient(175deg,rgba(255,255,255,.022),transparent 40%),var(--card);
+        border:1px solid var(--linha);border-radius:14px;padding:16px;margin-bottom:14px}
+.dim{color:var(--txt2);font-size:13.2px;line-height:1.65}
+
+/* ── botões ── */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;cursor:pointer;
-     background:var(--card2);color:var(--txt);padding:12px 17px;border-radius:12px;
-     font-weight:700;font-size:14px;transition:.14s}
-.btn:hover{background:#212c42;transform:translateY(-1px)}
-.btn-fba{background:linear-gradient(135deg,#fc0025,#c4001d);color:#fff;
-         box-shadow:0 6px 20px -6px #fc002580}
-.btn-fba:hover{background:linear-gradient(135deg,#ff1a3c,#d40020)}
-.btn-g{padding:16px 26px;font-size:16.5px;border-radius:14px}
+     background:var(--card2);color:var(--txt);padding:12px 17px;border-radius:11px;
+     font-weight:700;font-size:14px;border:1px solid var(--linha2);transition:.15s}
+.btn:hover{background:#1b2541;transform:translateY(-1px)}
+.btn-fba{background:linear-gradient(135deg,#ff1a3c,var(--fba2));border-color:transparent;color:#fff;
+         box-shadow:0 8px 24px -8px rgba(252,0,37,.65)}
 .btn-fraco{background:transparent;border:1px solid var(--linha);color:var(--txt2)}
-.btn:disabled{opacity:.45;cursor:default;transform:none}
+.btn:disabled{opacity:.4;cursor:default;transform:none}
 .linha-btns{display:flex;gap:9px;flex-wrap:wrap}
 
-/* ───────── hero do time ───────── */
-.hero{position:relative;overflow:hidden;border:1px solid var(--linha);border-radius:20px;
-      padding:20px;margin-bottom:14px;background:var(--card)}
-.hero::before{content:'';position:absolute;inset:0;
-      background:linear-gradient(105deg,var(--time) -25%,transparent 62%);opacity:.9}
-.hero > *{position:relative}
+/* o CTA inclinado — botão de capa */
+.cta{display:inline-block;border:0;cursor:pointer;transform:skewX(-10deg);border-radius:4px;
+     background:linear-gradient(135deg,#ff1a3c,var(--fba2));padding:15px 30px;
+     box-shadow:0 10px 32px -8px rgba(252,0,37,.65), inset 0 1px 0 rgba(255,255,255,.25);
+     transition:.16s}
+.cta>span{display:flex;align-items:center;gap:9px;transform:skewX(10deg);color:#fff;
+     font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:700;
+     font-size:19px;letter-spacing:1.4px;text-transform:uppercase;white-space:nowrap}
+.cta:hover{filter:brightness(1.12);transform:skewX(-10deg) translateY(-2px)}
+.cta:active{transform:skewX(-10deg) translateY(1px)}
+.cta:disabled{background:#232c45;box-shadow:none;cursor:default;filter:none;transform:skewX(-10deg)}
+.cta:disabled>span{color:var(--txt3)}
+.cta.cinza{background:linear-gradient(135deg,#27334f,#1a2236);box-shadow:0 8px 24px -10px #0009}
+
+/* ── escolha do time ─────────────────────────────────────────────── */
+.capa{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--linha);
+      background:linear-gradient(120deg,#160a12 0%,#0d1322 55%);padding:30px 24px 26px;margin-bottom:6px}
+.capa::before{content:'';position:absolute;inset:0;background:
+      radial-gradient(640px 300px at 12% -40%,rgba(252,0,37,.3),transparent 62%),
+      repeating-linear-gradient(115deg,transparent 0 26px,rgba(255,255,255,.015) 26px 28px)}
+.capa>*{position:relative}
+.capa .eyebrow{font-size:10.5px;letter-spacing:2.4px;text-transform:uppercase;color:#ff5d76;font-weight:800}
+.capa h1{margin:6px 0 10px;font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:700;
+      font-size:clamp(38px,7vw,58px);line-height:.95;text-transform:uppercase;letter-spacing:.5px}
+.capa h1 em{font-style:italic;color:transparent;-webkit-text-stroke:1.5px #ff3350}
+.capa p{max-width:640px}
+.capa .passos{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px}
+.capa .passo{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--txt2);font-weight:600}
+.capa .passo b{width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:6px;
+      background:#fc002522;border:1px solid #fc002550;color:#ff5d76;font-size:11px}
+
+.gmrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:18px}
+.inp{background:rgba(4,6,12,.75);border:1px solid var(--linha2);color:var(--txt);padding:13px 15px;
+     border-radius:11px;font:inherit;font-weight:600;width:250px;max-width:100%}
+.inp:focus{outline:none;border-color:#fc002580;box-shadow:0 0 0 3px #fc002522}
+
+.ligas{display:flex;gap:8px;flex-wrap:wrap}
+.ligatab{position:relative;transform:skewX(-10deg);border:1px solid var(--linha2);border-radius:4px;
+     padding:10px 22px;background:var(--card);transition:.15s}
+.ligatab>span{display:inline-block;transform:skewX(10deg);font-family:'Barlow Condensed',sans-serif;
+     font-style:italic;font-weight:700;font-size:17px;letter-spacing:1.4px;color:var(--txt2)}
+.ligatab:hover{border-color:#44557f}
+.ligatab.on{background:linear-gradient(135deg,var(--fba),var(--fba2));border-color:transparent;
+     box-shadow:0 6px 22px -6px rgba(252,0,37,.6)}
+.ligatab.on>span{color:#fff}
+.liga-desc{font-size:12px;color:var(--txt3);margin:10px 2px 0}
+
+.times{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:11px}
+@keyframes carta{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.timecard{position:relative;display:flex;gap:12px;align-items:center;cursor:pointer;overflow:hidden;
+     background:linear-gradient(165deg,rgba(255,255,255,.03),transparent 45%),var(--card);
+     border:1px solid var(--linha);border-radius:13px;padding:13px 13px 13px 16px;
+     transition:border-color .15s, transform .15s, box-shadow .15s;
+     animation:carta .45s backwards;animation-delay:calc(var(--i) * 16ms)}
+.timecard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c)}
+.timecard:hover{transform:translateY(-3px);border-color:var(--linha2);box-shadow:0 14px 30px -14px #000c}
+.timecard input{position:absolute;opacity:0;pointer-events:none}
+.timecard:has(input:checked){border-color:var(--fba);
+     box-shadow:0 0 0 1px var(--fba), 0 12px 34px -12px rgba(252,0,37,.55)}
+.timecard .check{position:absolute;top:0;right:0;width:30px;height:30px;display:grid;place-items:center;
+     background:var(--fba);color:#fff;font-size:13px;border-radius:0 11px 0 11px;
+     opacity:0;transform:translateY(-4px);transition:.16s}
+.timecard:has(input:checked) .check{opacity:1;transform:none}
+.timecard img.escudo,.timecard .es{width:52px;height:52px;border-radius:12px;object-fit:cover;flex:none;
+     display:grid;place-items:center;font-weight:900;font-size:14px;color:#fff;
+     filter:drop-shadow(0 4px 10px rgba(0,0,0,.5))}
+.timecard .n{flex:1;min-width:0}
+/* filhos em bloco de propósito: .n é <span> (cabe no <label>) e span é
+   inline — altura de filho inline é ignorada e a barra sumia da tela. */
+.timecard .n b{display:block;font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:700;
+     font-size:17.5px;letter-spacing:.5px;text-transform:uppercase;line-height:1.05;
+     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.timecard .n small{display:block;color:var(--txt3);font-size:11px;font-weight:600;margin-top:3px}
+.barra{display:block;height:4px;border-radius:99px;background:#04060c;overflow:hidden;margin:7px 0 0}
+.barra i{display:block;height:100%;background:var(--c);box-shadow:0 0 8px var(--c)}
+.timecard .lado{flex:none;display:flex;flex-direction:column;align-items:center;gap:5px}
+.timecard .ovr{font-family:Oswald,sans-serif;font-weight:600;font-size:23px;line-height:1;
+     color:var(--txt);letter-spacing:.5px}
+.timecard .ovr small{display:block;font-family:Inter,sans-serif;font-size:8px;font-weight:800;
+     letter-spacing:1.5px;color:var(--txt3);text-align:center;margin-top:2px}
+.paga{transform:skewX(-8deg);border-radius:3px;padding:3px 8px;font-size:10.5px;font-weight:800}
+.paga>span{display:inline-block;transform:skewX(8deg)}
+.paga.alta{background:#f5c84226;color:var(--ouro);border:1px solid #f5c84245}
+.paga.max{background:#2bd97c22;color:var(--ok);border:1px solid #2bd97c45}
+.paga.baixa{background:#1b2541;color:var(--txt3);border:1px solid var(--linha)}
+
+/* a barra de confirmação que sobe quando um time é marcado */
+.confirma{position:fixed;left:0;right:0;bottom:0;z-index:50;
+     background:rgba(6,9,18,.92);backdrop-filter:blur(14px);border-top:1px solid var(--linha2);
+     transform:translateY(110%);transition:transform .28s cubic-bezier(.2,.9,.3,1)}
+.confirma.on{transform:none}
+.confirma .dentro{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:13px;padding:12px 16px}
+.confirma img,.confirma .es{width:46px;height:46px;border-radius:11px;object-fit:cover;flex:none;
+     display:grid;place-items:center;font-weight:900;font-size:12px;background:#0007}
+.confirma .quem{flex:1;min-width:0}
+.confirma .quem small{display:block;font-size:9.5px;letter-spacing:2px;color:var(--txt3);font-weight:800;text-transform:uppercase}
+.confirma .quem b{display:block;font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:700;
+     font-size:19px;text-transform:uppercase;letter-spacing:.6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.confirma .quem em{font-style:normal;color:var(--ouro);font-size:12px;font-weight:700}
+
+/* ── hero do time (temporada em curso) ── */
+.hero{position:relative;overflow:hidden;border:1px solid var(--linha);border-radius:18px;
+      padding:22px 20px;margin-bottom:6px;background:var(--card)}
+.hero::before{content:'';position:absolute;inset:0;background:
+      linear-gradient(105deg,var(--time) -32%,rgba(13,19,34,.2) 52%),
+      repeating-linear-gradient(115deg,transparent 0 30px,rgba(255,255,255,.014) 30px 32px)}
+.hero .dagua{position:absolute;right:-48px;top:50%;transform:translateY(-50%) rotate(-11deg);
+      width:255px;height:255px;object-fit:contain;opacity:.08;filter:saturate(.7)}
+.hero>*{position:relative}
 .hero-topo{display:flex;gap:16px;align-items:center}
-.hero-escudo{width:76px;height:76px;border-radius:16px;object-fit:cover;flex:none;background:#0006;
-     display:grid;place-items:center;font-weight:900;font-size:23px;border:1px solid #ffffff20}
-.hero .eyebrow{font-size:10.5px;text-transform:uppercase;letter-spacing:1.6px;color:#ffffffb8;font-weight:800}
-.hero h1{margin:3px 0 5px;font-size:27px;line-height:1.08;font-weight:900;letter-spacing:-.4px}
-.hero .campanha{font-size:13.5px;color:#ffffffd4;font-weight:600}
-.hero-num{display:flex;gap:10px;margin-top:16px}
-.hero-num div{flex:1;background:#00000045;border:1px solid #ffffff14;border-radius:13px;
-              padding:10px;text-align:center}
-.hero-num b{display:block;font-size:21px;font-weight:900;line-height:1.1}
-.hero-num span{font-size:9.5px;text-transform:uppercase;letter-spacing:1.1px;color:#ffffffa8;font-weight:800}
-@media(max-width:560px){.hero h1{font-size:23px}.hero-escudo{width:60px;height:60px}}
+.hero-escudo{width:82px;height:82px;border-radius:17px;object-fit:cover;flex:none;background:#0006;
+     display:grid;place-items:center;font-weight:900;font-size:24px;border:1px solid #ffffff22;
+     filter:drop-shadow(0 8px 20px rgba(0,0,0,.55))}
+.hero .eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:2.2px;color:#ffffffc0;font-weight:800}
+.hero h1{margin:4px 0 5px;font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:700;
+     font-size:clamp(27px,5vw,38px);line-height:.98;text-transform:uppercase;letter-spacing:.4px}
+.hero .campanha{font-size:13px;color:#ffffffd8;font-weight:600}
+.hero .campanha b{font-family:Oswald,sans-serif;font-size:16px;letter-spacing:.5px}
+.hero-num{display:flex;gap:9px;margin-top:17px}
+.hero-num div{flex:1;background:rgba(0,0,0,.38);border:1px solid #ffffff14;border-radius:4px;
+     padding:9px 8px;text-align:center;transform:skewX(-8deg)}
+.hero-num div>*{display:block;transform:skewX(8deg)}
+.hero-num b{font-family:Oswald,sans-serif;font-weight:600;font-size:21px;line-height:1.1}
+.hero-num span{font-size:9px;text-transform:uppercase;letter-spacing:1.4px;color:#ffffff99;font-weight:800;margin-top:1px}
+@media(max-width:560px){.hero h1{font-size:25px}.hero-escudo{width:62px;height:62px}.hero .dagua{width:180px;height:180px;opacity:.06}}
 
-/* ───────── faixa de resultados ───────── */
-.faixa{display:flex;gap:5px;flex-wrap:wrap;margin-top:14px}
-.chip{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;font-size:11.5px;
-      font-weight:900;border:1px solid transparent}
-.chip.v{background:#2bd97c20;color:var(--ok);border-color:#2bd97c40}
-.chip.d{background:#f8615a1c;color:var(--perda);border-color:#f8615a38}
+.faixa{display:flex;gap:5px;flex-wrap:wrap;margin-top:15px}
+.chip{width:29px;height:29px;border-radius:4px;display:grid;place-items:center;font-size:11.5px;
+      font-weight:900;border:1px solid transparent;transform:skewX(-8deg);transition:.13s}
+.chip span{transform:skewX(8deg)}
+.chip:hover{transform:skewX(-8deg) translateY(-2px)}
+.chip.v{background:#2bd97c1e;color:var(--ok);border-color:#2bd97c3d}
+.chip.d{background:#f8615a1a;color:var(--perda);border-color:#f8615a35}
 
-/* ───────── TRANSMISSÃO ───────── */
-.tv{border-radius:20px;overflow:hidden;border:1px solid var(--linha);margin-bottom:14px;background:var(--card)}
-.tv-placar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;
-           padding:20px 14px 16px;position:relative;
-           background:linear-gradient(100deg,var(--corA) -30%,#0b0f19 38%,#0b0f19 62%,var(--corB) 130%)}
-.tv-time{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0}
-.tv-time img,.tv-time .es{width:50px;height:50px;border-radius:13px;object-fit:cover;
-     display:grid;place-items:center;font-weight:900;font-size:15px;background:#0007;border:1px solid #ffffff1f}
-.tv-time .ab{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;letter-spacing:.6px}
-.tv-time .pt{font-family:Oswald,sans-serif;font-size:52px;font-weight:600;line-height:.95;
-     font-variant-numeric:tabular-nums;transition:transform .18s}
-.tv-time .pt.pulou{transform:scale(1.22);color:var(--ouro)}
-.tv-meio{text-align:center;padding:0 6px}
-.tv-q{font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:2px;color:var(--txt2);font-weight:700}
-.tv-relogio{font-family:Oswald,sans-serif;font-size:27px;font-variant-numeric:tabular-nums;
-            letter-spacing:1px;margin-top:2px}
-.tv-barra{height:3px;background:#0b0f19}
-.tv-barra i{display:block;height:100%;background:linear-gradient(90deg,var(--corA),var(--corB));
-            width:0;transition:width .2s linear}
-.tv-ctrl{display:flex;gap:8px;align-items:center;padding:11px 14px;background:var(--card2);
-         border-top:1px solid var(--linha);flex-wrap:wrap}
-.vel{display:flex;gap:4px;background:#0b0f19;border-radius:10px;padding:3px}
-.vel button{background:transparent;border:0;color:var(--txt3);padding:6px 11px;border-radius:8px;
-            font-size:12.5px;font-weight:800;cursor:pointer}
-.vel button.on{background:var(--fba);color:#fff}
-.tv-feed{padding:6px 0;max-height:330px;overflow:auto;background:var(--bg2)}
-.lance{display:flex;gap:10px;align-items:flex-start;padding:8px 14px;font-size:13.3px;
-       border-left:3px solid transparent;animation:entra .22s ease-out}
-@keyframes entra{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
-.lance .rl{font-family:Oswald,sans-serif;font-size:11px;color:var(--txt3);min-width:46px;
-           font-variant-numeric:tabular-nums;padding-top:1px}
+/* ── duelo (próximo jogo) ── */
+.duelo{position:relative;display:flex;align-items:stretch;justify-content:center;gap:0;
+       border-radius:14px;overflow:hidden;border:1px solid var(--linha);margin-bottom:14px;
+       background:linear-gradient(100deg,var(--cA) -55%,#0d1322 40%,#0d1322 60%,var(--cB) 155%)}
+.duelo .lado{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px;
+       text-align:center;padding:22px 10px 18px}
+.duelo img,.duelo .es{width:72px;height:72px;border-radius:16px;object-fit:cover;
+       display:grid;place-items:center;font-weight:900;font-size:17px;background:#0007;
+       filter:drop-shadow(0 8px 22px rgba(0,0,0,.6))}
+.duelo b{font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:700;font-size:17px;
+       letter-spacing:.5px;text-transform:uppercase;line-height:1.1}
+.duelo small{color:var(--txt2);font-size:11.5px;font-weight:600}
+.duelo .vs{align-self:center;flex:none;font-family:Oswald,sans-serif;font-weight:700;font-style:italic;
+       font-size:30px;color:transparent;-webkit-text-stroke:1.3px #ffffff66;padding:0 6px;letter-spacing:1px}
+
+/* ── TRANSMISSÃO ── */
+.tv{border-radius:18px;overflow:hidden;border:1px solid var(--linha);margin-bottom:14px;background:var(--card)}
+.tv-placar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;
+     padding:24px 12px 18px;position:relative;
+     background:radial-gradient(420px 190px at 14% 0%,var(--corA),transparent 72%),
+                radial-gradient(420px 190px at 86% 0%,var(--corB),transparent 72%),
+                #0a0f1d}
+.tv-time{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0;transition:.2s}
+.tv-time img,.tv-time .es{width:56px;height:56px;border-radius:14px;object-fit:cover;
+     display:grid;place-items:center;font-weight:900;font-size:15px;background:#0007;
+     border:1px solid #ffffff1f;filter:drop-shadow(0 6px 16px rgba(0,0,0,.55))}
+.tv-time .ab{font-family:'Barlow Condensed',sans-serif;font-style:italic;font-size:17px;font-weight:700;letter-spacing:1.2px}
+.tv-time .pt{font-family:Oswald,sans-serif;font-size:58px;font-weight:600;line-height:.92;
+     font-variant-numeric:tabular-nums;transition:transform .17s;text-shadow:0 4px 24px rgba(0,0,0,.5)}
+.tv-time .pt.pulou{transform:scale(1.24);color:var(--ouro)}
+@keyframes flash{0%{filter:brightness(1)}30%{filter:brightness(1.7)}100%{filter:brightness(1)}}
+.tv-time.flash{animation:flash .5s}
+.tv-meio{text-align:center;padding:9px 16px 11px;background:rgba(0,0,0,.42);border:1px solid #ffffff14;
+     border-radius:4px;transform:skewX(-8deg)}
+.tv-meio>*{transform:skewX(8deg)}
+.tv-q{display:block;font-family:'Barlow Condensed',sans-serif;font-style:italic;font-size:13px;
+     letter-spacing:2.4px;color:var(--txt2);font-weight:700}
+.tv-relogio{display:block;font-family:Oswald,sans-serif;font-size:30px;font-weight:600;
+     font-variant-numeric:tabular-nums;letter-spacing:1.5px;line-height:1.1}
+.tv-vivo{position:absolute;top:10px;left:12px;display:flex;align-items:center;gap:6px;
+     font-size:10px;font-weight:800;letter-spacing:1.8px;color:#ff5d76}
+@keyframes pulso{0%,100%{opacity:1}50%{opacity:.25}}
+.tv-vivo i{width:7px;height:7px;border-radius:50%;background:var(--fba);animation:pulso 1.1s infinite}
+.tv-etapa{position:absolute;top:10px;right:12px;font-size:10px;font-weight:800;letter-spacing:1.8px;color:var(--txt3)}
+.tv-barra{height:3px;background:#04060c}
+.tv-barra i{display:block;height:100%;background:linear-gradient(90deg,var(--corA),var(--fba),var(--corB));
+     width:0;transition:width .2s linear}
+.tv-ctrl{display:flex;gap:8px;align-items:center;padding:11px 13px;background:var(--card2);
+     border-top:1px solid var(--linha);flex-wrap:wrap}
+.vel{display:flex;gap:4px;background:#04060c;border-radius:4px;padding:3px;transform:skewX(-8deg)}
+.vel button{background:transparent;border:0;color:var(--txt3);padding:6px 12px;border-radius:3px;
+     font-size:12.5px;font-weight:800;cursor:pointer}
+.vel button span{display:inline-block;transform:skewX(8deg)}
+.vel button.on{background:var(--fba);color:#fff;box-shadow:0 2px 10px -2px rgba(252,0,37,.7)}
+.tv-feed{padding:6px 0;max-height:335px;overflow:auto;background:#080c16}
+.lance{display:flex;gap:11px;align-items:flex-start;padding:8px 15px;font-size:13.2px;
+     border-left:3px solid transparent;animation:entra .2s ease-out}
+@keyframes entra{from{opacity:0;transform:translateX(-7px)}to{opacity:1;transform:none}}
+.lance .rl{font-family:Oswald,sans-serif;font-size:11px;color:var(--txt3);min-width:44px;
+     font-variant-numeric:tabular-nums;padding-top:1.5px}
 .lance .tx{flex:1;min-width:0;color:var(--txt2);line-height:1.45}
-.lance.cesta{background:#ffffff06}
+.lance.cesta{background:rgba(255,255,255,.025)}
 .lance.cesta .tx{color:var(--txt);font-weight:600}
-.lance.cesta3{background:#f5c84212;border-left-color:var(--ouro)}
+.lance.cesta3{background:rgba(245,200,66,.08)}
 .lance.cesta3 .tx{color:#fff;font-weight:700}
-.lance.evento{background:#fc002510;border-left-color:var(--fba)}
-.tv-fim{padding:18px 14px;text-align:center;border-top:1px solid var(--linha)}
-.tv-fim .r{font-family:'Barlow Condensed',sans-serif;font-size:27px;font-weight:700;letter-spacing:1px}
-.tv-fim .r.ganhou{color:var(--ok)} .tv-fim .r.perdeu{color:var(--perda)}
+.lance.evento{background:rgba(252,0,37,.07);border-left-color:var(--fba)}
+.tv-fim{padding:20px 14px;text-align:center;border-top:1px solid var(--linha)}
+.tv-fim .r{font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:700;
+     font-size:34px;letter-spacing:1.5px;text-transform:uppercase}
+.tv-fim .r.ganhou{color:var(--ok);text-shadow:0 0 34px rgba(43,217,124,.4)}
+.tv-fim .r.perdeu{color:var(--perda)}
 
-/* ───────── listas e tabelas ───────── */
-table{width:100%;border-collapse:collapse;font-size:13.4px}
-th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1.1px;color:var(--txt3);
+/* ── tabelas ── */
+table{width:100%;border-collapse:collapse;font-size:13.2px}
+th{text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:1.3px;color:var(--txt3);
    font-weight:800;padding:0 7px 8px}
 td{padding:7px;border-top:1px solid var(--linha)}
-tr.eu td{background:#fc002512}
+tr.eu td{background:rgba(252,0,37,.08)}
 tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
-.num2{text-align:right;font-variant-numeric:tabular-nums}
+tr.corte td{border-bottom:1px dashed var(--linha2)}
+.num2{text-align:right;font-variant-numeric:tabular-nums;font-family:Oswald,sans-serif;font-weight:500;font-size:13.5px}
 .duas{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 @media(max-width:780px){.duas{grid-template-columns:1fr}}
-.mini{width:22px;height:22px;border-radius:7px;object-fit:cover;vertical-align:-6px;margin-right:7px;
+.mini{width:23px;height:23px;border-radius:6px;object-fit:cover;vertical-align:-6px;margin-right:7px;
       display:inline-grid;place-items:center;font-size:9px;font-weight:900;background:#0007}
+.seed{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:5px;margin-right:6px;
+      font-size:10.5px;font-weight:800;color:var(--txt3);background:#111a2e;vertical-align:-4px}
+.seed.po{color:var(--ok);background:#2bd97c18}
+.seed.pi{color:var(--ouro);background:#f5c84216}
 
-/* ───────── próximo jogo ───────── */
-.duelo{display:flex;align-items:center;justify-content:center;gap:14px;padding:6px 0 18px}
-.duelo .lado{display:flex;flex-direction:column;align-items:center;gap:7px;flex:1;min-width:0;text-align:center}
-.duelo img,.duelo .es{width:56px;height:56px;border-radius:14px;object-fit:cover;
-      display:grid;place-items:center;font-weight:900;font-size:16px;background:#0007}
-.duelo b{font-size:13.5px;line-height:1.25}
-.duelo small{color:var(--txt3);font-size:11.5px}
-.duelo .x{font-family:'Barlow Condensed',sans-serif;font-size:22px;color:var(--txt3);flex:none}
-
-/* ───────── corridas ───────── */
-.corridas{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px}
-.corrida b.rot{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:1.2px;
-               color:var(--ouro);margin-bottom:8px;font-weight:800}
-.corrida .l{display:flex;gap:8px;align-items:center;padding:4px 0;font-size:13px}
-.corrida .l .p{width:14px;color:var(--txt3);font-weight:900;font-size:11px}
+/* ── corridas ── */
+.corridas{display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:13px}
+.corrida{background:var(--card2);border:1px solid var(--linha);border-radius:12px;padding:12px}
+.corrida b.rot{display:inline-block;transform:skewX(-8deg);background:#f5c84220;border:1px solid #f5c84240;
+     color:var(--ouro);border-radius:3px;padding:3px 10px;font-size:11px;font-weight:800;
+     letter-spacing:1.4px;margin-bottom:10px}
+.corrida b.rot span{display:inline-block;transform:skewX(8deg)}
+.corrida .l{display:flex;gap:8px;align-items:center;padding:4.5px 0;font-size:12.8px}
+.corrida .l .p{width:13px;color:var(--txt3);font-weight:900;font-size:10.5px;font-family:Oswald,sans-serif}
+.corrida .l:first-of-type .nm{font-weight:700}
 .corrida .l .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.corrida .l .vl{color:var(--txt2);font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums}
+.corrida .l .vl{color:var(--txt3);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
 
-/* ───────── chaveamento ───────── */
-.rodada{margin-bottom:16px}
-.rodada > b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:1.3px;
-            color:var(--txt3);margin-bottom:8px;font-weight:800}
+/* ── chaveamento ── */
+.rodada{margin-bottom:17px}
+.rodada>b{display:inline-block;transform:skewX(-8deg);background:var(--card2);border:1px solid var(--linha2);
+     border-radius:3px;padding:4px 13px;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;
+     color:var(--txt2);font-weight:800;margin-bottom:9px}
+.rodada>b span{display:inline-block;transform:skewX(8deg)}
 .serie{display:flex;align-items:center;gap:9px;background:var(--card2);border:1px solid var(--linha);
-       border-radius:12px;padding:9px 11px;margin-bottom:7px;font-size:13.3px}
-.serie.eu{border-color:var(--fba);background:#fc00250e}
-.serie .t{flex:1;min-width:0;display:flex;align-items:center;gap:7px}
-.serie .t.out{color:var(--txt3)}
-.serie img,.serie .es{width:24px;height:24px;border-radius:7px;object-fit:cover;flex:none;
-      display:grid;place-items:center;font-size:9px;font-weight:900;background:#0007}
-.serie .w{font-family:Oswald,sans-serif;font-size:17px;font-variant-numeric:tabular-nums;flex:none}
+     border-radius:11px;padding:10px 12px;margin-bottom:7px;font-size:13.2px}
+.serie.eu{border-color:#fc002570;background:rgba(252,0,37,.06);box-shadow:0 0 22px -10px rgba(252,0,37,.5)}
+.serie .t{flex:1;min-width:0;display:flex;align-items:center;gap:7px;font-weight:600}
+.serie .t.out{color:var(--txt3);font-weight:500}
+.serie img,.serie .es{width:26px;height:26px;border-radius:7px;object-fit:cover;flex:none;
+     display:grid;place-items:center;font-size:9px;font-weight:900;background:#0007}
+.serie .w{font-family:Oswald,sans-serif;font-size:19px;font-variant-numeric:tabular-nums;flex:none}
 .serie .w.ganha{color:var(--ok)}
-.serie .seed{color:var(--txt3);font-size:10.5px;font-weight:800;flex:none}
+.serie .seed{margin:0}
 
-/* ───────── escolha do time ───────── */
-.ligas{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:10px}
-.ligacard{display:block;background:var(--card2);border:1px solid var(--linha);border-radius:14px;padding:15px;transition:.14s}
-.ligacard:hover{border-color:#3a4760;transform:translateY(-2px)}
-.ligacard.on{border-color:var(--fba);background:#fc002510}
-.ligacard b{font-family:'Barlow Condensed',sans-serif;font-size:22px;letter-spacing:.6px;font-weight:700}
-.ligacard p{margin:4px 0 0;font-size:12.3px;color:var(--txt2);line-height:1.5}
-.times{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:9px}
-.timecard{position:relative;display:flex;gap:11px;align-items:center;background:var(--card2);
-          border:1px solid var(--linha);border-radius:14px;padding:11px;cursor:pointer;transition:.13s}
-.timecard:hover{border-color:#3a4760}
-.timecard input{position:absolute;opacity:0;pointer-events:none}
-.timecard:has(input:checked){border-color:var(--fba);background:#fc002510}
-.timecard img,.timecard .es{width:44px;height:44px;border-radius:11px;object-fit:cover;flex:none;
-          display:grid;place-items:center;font-weight:900;font-size:13px;color:#fff}
-.timecard .n{flex:1;min-width:0}
-/* OS FILHOS SÃO BLOCO DE PROPÓSITO: .n é <span> (precisa ser, pra caber dentro
-   do <label>), e span é inline — altura de filho inline é ignorada. Sem isto a
-   barra de força nascia com 0 de largura e sumia da tela. */
-.timecard .n b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.timecard .n small{display:block;color:var(--txt3);font-size:11.3px}
-.barra{display:block;height:5px;border-radius:99px;background:#070a11;overflow:hidden;margin:6px 0 4px}
-.barra i{display:block;height:100%}
-.inp{background:#070a11;border:1px solid var(--linha);color:var(--txt);padding:12px 14px;
-     border-radius:12px;font:inherit;width:230px;max-width:100%}
+/* ── avisos ── */
+.aviso{border-radius:12px;padding:13px 15px;margin-bottom:14px;font-size:13.4px;line-height:1.6}
+.aviso.ok{background:#f5c84216;border:1px solid #f5c84248}
+.aviso.err{background:#f8615a16;border:1px solid #f8615a4d}
 
-/* ───────── moedas ───────── */
-.etapa{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--linha);font-size:13.4px}
+/* ── modais (box score e resumo) ── */
+.modal-fundo{position:fixed;inset:0;z-index:60;background:rgba(2,4,9,.88);backdrop-filter:blur(6px);
+     display:none;align-items:flex-start;justify-content:center;padding:24px 14px;overflow:auto}
+.modal-fundo.aberto{display:flex}
+.modal{position:relative;width:100%;max-width:520px;background:var(--card);border:1px solid var(--linha2);
+     border-radius:18px;overflow:hidden;animation:sobe .3s cubic-bezier(.2,.9,.3,1);
+     box-shadow:0 40px 90px -30px #000}
+@keyframes sobe{from{opacity:0;transform:translateY(22px) scale(.96)}to{opacity:1;transform:none}}
+.modal-x{position:absolute;top:12px;right:12px;z-index:2;width:33px;height:33px;border-radius:10px;
+     background:#0008;border:1px solid #ffffff24;color:#fff;cursor:pointer;display:grid;place-items:center}
+.modal-topo{text-align:center;padding:28px 20px 22px;position:relative;
+     background:radial-gradient(420px 220px at 50% -70%,var(--c),transparent 75%),#0f1526}
+.modal-topo .tacinha{width:58px;height:58px;margin:0 auto 10px;border-radius:50%;display:grid;place-items:center;
+     background:#f5c84220;border:1px solid #f5c84252;color:var(--ouro);font-size:26px;
+     box-shadow:0 0 44px -6px rgba(245,200,66,.45)}
+.modal-topo .eyebrow{font-size:9.5px;letter-spacing:2.4px;text-transform:uppercase;color:#ffffffb0;font-weight:800}
+.modal-topo h3{margin:6px 0 0;font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:700;
+     font-size:29px;letter-spacing:.5px;line-height:1.08;text-transform:uppercase}
+.modal-corpo{padding:18px}
+.bloco-rot{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:1.5px;color:var(--ouro);
+     font-weight:800;margin:20px 0 9px}
+.bloco-rot:first-child{margin-top:0}
+.meu-fim{display:flex;align-items:center;gap:11px;background:var(--card2);border:1px solid var(--linha);
+     border-radius:13px;padding:12px}
+.meu-fim.campeao{border-color:#f5c84272;background:#f5c8420e;box-shadow:0 0 34px -10px rgba(245,200,66,.5)}
+.meu-fim img,.meu-fim .es{width:46px;height:46px;border-radius:12px;object-fit:cover;flex:none;
+     display:grid;place-items:center;font-weight:900;font-size:13px}
+.meu-fim b{display:block;font-size:14.5px}
+.meu-fim small{color:var(--txt3);font-size:11.5px}
+.meu-fim .selo{margin-left:auto;text-align:right;font-size:10.5px;font-weight:800;text-transform:uppercase;
+     letter-spacing:.8px;color:var(--ouro);max-width:40%;line-height:1.4}
+.premio{display:flex;gap:11px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--linha)}
+.premio:first-of-type{border-top:0}
+.premio .pr{width:62px;flex:none;font-family:'Barlow Condensed',sans-serif;font-style:italic;
+     font-size:14px;letter-spacing:1px;color:var(--ouro);font-weight:700;padding-top:2px}
+.premio .pn{flex:1;min-width:0;font-size:13.4px;line-height:1.45}
+.premio .pn small{font-size:11px;color:var(--txt3)}
+.etapa{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--linha);font-size:13.3px}
 .etapa:first-of-type{border-top:0}
 .etapa.feita{color:var(--txt)} .etapa.feita i{color:var(--ok)}
 .etapa.falta{color:var(--txt3)}
-.etapa .v{margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums}
+.etapa .v{margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums;font-family:Oswald,sans-serif}
 .etapa.feita .v{color:var(--ouro)}
-.aviso{border-radius:14px;padding:13px 15px;margin-bottom:14px;font-size:13.5px;line-height:1.6}
-.aviso.ok{background:#f5c8421a;border:1px solid #f5c84250}
-.aviso.err{background:#f8615a18;border:1px solid #f8615a50}
+.total{display:flex;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--linha2);
+     font-size:14px;font-weight:700}
+.total b{margin-left:auto;color:var(--ouro);font-size:21px;font-family:Oswald,sans-serif;font-variant-numeric:tabular-nums}
+.btn-resumo{background:#f5c84216;border:1px solid #f5c84248;color:var(--ouro);
+     padding:9px 15px;border-radius:4px;font-weight:700;font-size:13px;cursor:pointer;
+     display:inline-flex;align-items:center;gap:7px;margin-top:15px;transform:skewX(-8deg)}
+.btn-resumo>*{transform:skewX(8deg)}
 
-/* ───────── resumo de fim de temporada ───────── */
-.modal-fundo{position:fixed;inset:0;z-index:60;background:#030509e0;backdrop-filter:blur(5px);
-             display:none;align-items:flex-start;justify-content:center;padding:22px 14px;overflow:auto}
-.modal-fundo.aberto{display:flex}
-.modal{position:relative;width:100%;max-width:520px;background:var(--card);border:1px solid var(--linha);
-       border-radius:20px;overflow:hidden;animation:sobe .26s cubic-bezier(.2,.9,.3,1)}
-@keyframes sobe{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:none}}
-.modal-x{position:absolute;top:12px;right:12px;z-index:2;width:32px;height:32px;border-radius:10px;
-         background:#0007;border:1px solid #ffffff22;color:#fff;cursor:pointer;display:grid;place-items:center}
-.modal-topo{text-align:center;padding:26px 20px 22px;position:relative;
-            background:linear-gradient(160deg,var(--c) -60%,#131a2a 58%)}
-.modal-topo .tacinha{width:56px;height:56px;margin:0 auto 10px;border-radius:50%;display:grid;place-items:center;
-            background:#f5c84222;border:1px solid #f5c84255;color:var(--ouro);font-size:25px}
-.modal-topo .eyebrow{font-size:10px;letter-spacing:1.7px;text-transform:uppercase;color:#ffffffb0;font-weight:800}
-.modal-topo h3{margin:6px 0 0;font-size:24px;font-weight:900;letter-spacing:-.3px;line-height:1.15}
-.modal-corpo{padding:18px}
-.bloco-rot{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:1.3px;color:var(--ouro);
-           font-weight:800;margin:20px 0 9px}
-.bloco-rot:first-child{margin-top:0}
-.meu-fim{display:flex;align-items:center;gap:11px;background:var(--card2);border:1px solid var(--linha);
-         border-radius:14px;padding:12px}
-.meu-fim.campeao{border-color:#f5c84270;background:#f5c8420f}
-.meu-fim img,.meu-fim .es{width:44px;height:44px;border-radius:11px;object-fit:cover;flex:none;
-         display:grid;place-items:center;font-weight:900;font-size:13px}
-.meu-fim b{display:block;font-size:14.5px}
-.meu-fim small{color:var(--txt3);font-size:11.5px}
-.meu-fim .selo{margin-left:auto;text-align:right;font-size:11px;font-weight:800;text-transform:uppercase;
-         letter-spacing:.7px;color:var(--ouro);max-width:40%;line-height:1.35}
-.premio{display:flex;gap:11px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--linha)}
-.premio:first-of-type{border-top:0}
-.premio .pr{width:92px;flex:none;font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;
-            color:var(--txt3);font-weight:800;padding-top:3px}
-.premio .pn{flex:1;min-width:0;font-size:13.5px;line-height:1.4}
-.premio .pn small{font-size:11px;color:var(--txt3)}
-.total{display:flex;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--linha);
-       font-size:14px;font-weight:700}
-.total b{margin-left:auto;color:var(--ouro);font-size:19px;font-variant-numeric:tabular-nums}
 /* placar do box score */
-.box-placar{display:flex;align-items:center;gap:10px;padding:22px 18px 18px;
-            background:linear-gradient(100deg,var(--cA) -45%,#131a2a 42%,#131a2a 58%,var(--cB) 145%)}
-.box-placar .bx{color:var(--txt3);font-family:'Barlow Condensed',sans-serif;font-size:19px;flex:none}
-.box-placar .bt{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;opacity:.62}
+.box-placar{display:flex;align-items:center;gap:10px;padding:24px 18px 18px;
+     background:radial-gradient(320px 160px at 12% 0%,var(--cA),transparent 72%),
+                radial-gradient(320px 160px at 88% 0%,var(--cB),transparent 72%),#0a0f1d}
+.box-placar .bx{color:transparent;-webkit-text-stroke:1px #ffffff55;font-family:Oswald,sans-serif;
+     font-style:italic;font-weight:700;font-size:21px;flex:none}
+.box-placar .bt{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;opacity:.58}
 .box-placar .bt.venceu{opacity:1}
-.box-placar img,.box-placar .es{width:46px;height:46px;border-radius:12px;object-fit:cover;
-            display:grid;place-items:center;font-weight:900;font-size:13px;background:#0007;border:1px solid #ffffff1c}
-.box-placar b{font-size:12.5px;line-height:1.3}
-.box-placar .pts{font-family:Oswald,sans-serif;font-size:36px;line-height:1;font-variant-numeric:tabular-nums}
+.box-placar img,.box-placar .es{width:48px;height:48px;border-radius:12px;object-fit:cover;
+     display:grid;place-items:center;font-weight:900;font-size:13px;background:#0007;border:1px solid #ffffff1c}
+.box-placar b{font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:700;font-size:14px;
+     letter-spacing:.5px;text-transform:uppercase;line-height:1.2}
+.box-placar .pts{font-family:Oswald,sans-serif;font-size:38px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
 .box-placar .bt.venceu .pts{color:var(--ouro)}
 .modal-corpo table{margin-bottom:4px}
-
-.btn-resumo{background:#f5c84218;border:1px solid #f5c84250;color:var(--ouro);
-            padding:9px 14px;border-radius:11px;font-weight:700;font-size:13px;cursor:pointer;
-            display:inline-flex;align-items:center;gap:7px;margin-top:14px}
 </style>
 </head>
 <body>
 
 <header class="topbar">
   <a class="voltar" href="/games.php" title="Voltar aos games"><i class="bi bi-arrow-left"></i></a>
-  <div class="marca">Minha <em>Temporada</em></div>
-  <span class="saldo"><i class="bi bi-coin"></i> <?= number_format($moedas, 0, ',', '.') ?></span>
+  <div class="marca">
+    <span class="slab"><b>FBA</b></span>
+    <span class="resto">Minha Temporada</span>
+  </div>
+  <span class="saldo"><i class="bi bi-coin"></i><b><?= number_format($moedas, 0, ',', '.') ?></b></span>
 </header>
 
 <div class="wrap">
@@ -374,91 +549,123 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
   </div>
 <?php endif; ?>
 
-<?php if (!$tem): /* ═════════════ ESCOLHA DO TIME ═════════════ */ ?>
-
-  <?php
-    $times = TemporadaLiga::timesDaLiga($liga);
-    $ovrs = array_map(fn($t) => (float) $t['ovr_medio'], $times);
-    $piso = $ovrs ? min($ovrs) : 0; $topo = $ovrs ? max($ovrs) : 1;
-  ?>
-  <form method="post">
+<?php if (!$tem): /* ═════════════ ESCOLHA DO TIME ═════════════ */
+  $times = TemporadaLiga::timesDaLiga($liga);
+  $ovrs = array_map(fn($t) => (float) $t['ovr_medio'], $times);
+  $piso = $ovrs ? min($ovrs) : 0; $topo = $ovrs ? max($ovrs) : 1;
+?>
+  <form method="post" id="formTemporada">
     <input type="hidden" name="acao" value="comecar">
     <input type="hidden" name="liga" value="<?= e($liga) ?>">
 
-    <?php /* NOME E BOTÃO NO TOPO. Estavam no fim, depois de trinta e dois
-             cartões de time: pra começar a jogar era preciso rolar a lista
-             inteira de novo, já tendo escolhido. Aqui em cima eles ficam à
-             vista o tempo todo, e o botão diz qual time está marcado — que é
-             a confirmação que a pessoa procurava lá embaixo. */ ?>
-    <div class="painel inicio" style="background:linear-gradient(135deg,#1a2338,#111725)">
-      <h2><i class="bi bi-trophy-fill" style="color:var(--ouro)"></i> Minha Temporada</h2>
-      <p class="dim" style="margin-top:0">
-        Pegue um time da FBA e leve ele até o título. Você <b>assiste a cada um dos 82 jogos</b> —
-        relógio correndo, placar subindo, lance a lance — e acompanha o resto da liga pela tabela.
-        Cada etapa de playoff paga moeda, e paga <b>mais quanto pior for o elenco que escolher</b>.
+    <div class="capa">
+      <div class="eyebrow">FBA Games apresenta</div>
+      <h1>Minha <em>Temporada</em></h1>
+      <p class="dim">
+        Pegue um time da FBA e leve ele até o título. Você assiste a cada um dos 82 jogos —
+        relógio correndo, placar subindo, lance a lance. Cada etapa de playoff paga moeda,
+        e paga <b style="color:var(--ouro)">mais quanto pior for o elenco que você escolher</b>.
       </p>
-      <div class="comecar">
+      <div class="passos">
+        <span class="passo"><b>1</b> Escolha a liga</span>
+        <span class="passo"><b>2</b> Escolha o time</span>
+        <span class="passo"><b>3</b> Bola ao alto</span>
+      </div>
+      <div class="gmrow">
         <input name="gm_nome" maxlength="40" placeholder="Seu nome de GM" class="inp" value="<?= e($user['name'] ?? '') ?>">
-        <button class="btn btn-fba btn-g" type="submit" id="btComecar" disabled>
-          <i class="bi bi-play-fill"></i> <span id="btComecarTxt">Escolha um time abaixo</span>
-        </button>
       </div>
     </div>
 
-    <div class="painel">
-      <h2><i class="bi bi-diagram-3-fill"></i> 1. A liga</h2>
-      <div class="ligas">
-        <?php foreach ([
-          'ELITE'  => 'A divisão de cima. 32 times, os melhores elencos.',
-          'NEXT'   => '30 times, um degrau abaixo da ELITE.',
-          'RISE'   => '30 times em formação.',
-          'ROOKIE' => '30 times, a porta de entrada.',
-        ] as $l => $txt): ?>
-          <a class="ligacard<?= $l === $liga ? ' on' : '' ?>" href="?liga=<?= $l ?>"><b><?= $l ?></b><p><?= e($txt) ?></p></a>
-        <?php endforeach; ?>
-      </div>
+    <div class="sec"><div class="tag"><span>A liga</span></div></div>
+    <div class="ligas">
+      <?php foreach (TemporadaLiga::LIGAS as $l): ?>
+        <a class="ligatab<?= $l === $liga ? ' on' : '' ?>" href="?liga=<?= $l ?>"><span><?= $l ?></span></a>
+      <?php endforeach; ?>
     </div>
+    <p class="liga-desc">
+      <?= e([
+        'ELITE'  => 'A divisão de cima: 32 times, os melhores elencos da FBA.',
+        'NEXT'   => '30 times, um degrau abaixo da ELITE.',
+        'RISE'   => '30 times em formação.',
+        'ROOKIE' => '30 times, a porta de entrada da FBA.',
+      ][$liga]) ?>
+    </p>
 
-    <div class="painel">
-      <h2><i class="bi bi-people-fill"></i> 2. O time <span class="sub">do elenco mais forte<br>pro mais fraco</span></h2>
-      <div class="times">
-        <?php foreach ($times as $i => $t):
-          $nome = trim((string) $t['city'] . ' ' . (string) $t['name']);
-          $media = (float) $t['ovr_medio'];
-          $forca = $topo > $piso ? (int) round(($media - $piso) / ($topo - $piso) * 100) : 50;
-          $c = $cor($t['cor']);
-          $logo = trim((string) $t['photo_url']);
-          [$recado, $corR] = $forca >= 80 ? ['Favorito — paga o mínimo', 'var(--txt3)']
-                           : ($forca >= 50 ? ['Briga pelos playoffs', 'var(--txt3)']
-                           : ($forca >= 25 ? ['Azarão — paga bem', 'var(--ouro)']
-                           : ['Pior da liga — paga o máximo', 'var(--ok)']));
-        ?>
-        <label class="timecard">
-          <?php /* Sem `required`: o rádio é invisível por CSS, e campo
-                   obrigatório que o navegador não consegue focar trava o
-                   envio com um erro que ninguém vê. Quem segura o botão é o
-                   script lá embaixo. */ ?>
-          <input type="radio" name="fba_team_id" value="<?= (int) $t['id'] ?>" data-nome="<?= e($nome) ?>">
-          <?php if ($logo): ?><img src="<?= e($logo) ?>" alt="" loading="lazy" style="background:<?= e($c) ?>">
-          <?php else: ?><span class="es" style="background:<?= e($c) ?>"><?= e(mb_strtoupper(mb_substr($nome, 0, 2))) ?></span><?php endif; ?>
-          <span class="n">
-            <b><?= e($nome) ?></b>
-            <small>OVR <?= number_format($media, 1, ',', '.') ?> · teto <?= (int) $t['teto'] ?> · <?= strtoupper((string) $t['conference']) === 'LESTE' ? 'Leste' : 'Oeste' ?></small>
-            <span class="barra"><i style="width:<?= max(4, $forca) ?>%;background:<?= e($c) ?>"></i></span>
-            <small style="color:<?= $corR ?>"><?= e($recado) ?></small>
-          </span>
-        </label>
-        <?php endforeach; ?>
-      </div>
+    <div class="sec"><div class="tag"><span>O time</span></div>
+      <span class="sub">do mais forte<br>pro mais fraco</span></div>
+    <div class="times">
+      <?php foreach ($times as $i => $t):
+        $nome = trim((string) $t['city'] . ' ' . (string) $t['name']);
+        $media = (float) $t['ovr_medio'];
+        $forca = $topo > $piso ? (int) round(($media - $piso) / ($topo - $piso) * 100) : 50;
+        $c = $cor($t['cor']);
+        $logo = trim((string) $t['photo_url']);
+        /* O multiplicador exato no cartão, não um adjetivo: "paga 2,4x" diz
+           mais que "azarão". É a mesma conta do TemporadaPremios. */
+        $mult = round(1 + (1 - $forca / 100) * 1.5, 1);
+        $classeMult = $forca < 25 ? 'max' : ($forca < 55 ? 'alta' : 'baixa');
+      ?>
+      <label class="timecard" style="--c:<?= e($c) ?>;--i:<?= min($i, 24) ?>">
+        <?php /* sem `required`: o rádio é invisível e campo obrigatório que o
+                 navegador não consegue focar trava o envio em silêncio. Quem
+                 segura o botão é o script da barra de confirmação. */ ?>
+        <input type="radio" name="fba_team_id" value="<?= (int) $t['id'] ?>"
+               data-nome="<?= e($nome) ?>" data-logo="<?= e($logo) ?>" data-mult="<?= $mult ?>" data-cor="<?= e($c) ?>">
+        <span class="check"><i class="bi bi-check-lg"></i></span>
+        <?php if ($logo): ?><img class="escudo" src="<?= e($logo) ?>" alt="" loading="lazy">
+        <?php else: ?><span class="es" style="background:<?= e($c) ?>"><?= e(mb_strtoupper(mb_substr($nome, 0, 2))) ?></span><?php endif; ?>
+        <span class="n">
+          <b><?= e($nome) ?></b>
+          <small><?= strtoupper((string) $t['conference']) === 'LESTE' ? 'Leste' : 'Oeste' ?> · teto <?= (int) $t['teto'] ?> · <?= (int) $t['jogadores'] ?> jogadores</small>
+          <span class="barra"><i style="width:<?= max(4, $forca) ?>%"></i></span>
+        </span>
+        <span class="lado">
+          <span class="ovr"><?= number_format($media, 1, ',', '') ?><small>OVR</small></span>
+          <span class="paga <?= $classeMult ?>"><span>PAGA <?= number_format($mult, 1, ',', '') ?>x</span></span>
+        </span>
+      </label>
+      <?php endforeach; ?>
     </div>
   </form>
+
+  <?php /* A BARRA DE CONFIRMAÇÃO. Marcou um time, ela sobe do rodapé com o
+           escudo e o botão — o botão está sempre ao alcance, em qualquer
+           ponto da lista, sem precisar rolar de volta pra lugar nenhum. */ ?>
+  <div class="confirma" id="confirmaBar">
+    <div class="dentro">
+      <img id="cbLogo" src="" alt="" style="display:none">
+      <span class="es" id="cbEs" style="display:none"></span>
+      <div class="quem">
+        <small>Seu time</small>
+        <b id="cbNome">—</b>
+        <em id="cbMult"></em>
+      </div>
+      <button class="cta" type="submit" form="formTemporada" id="btComecar">
+        <span><i class="bi bi-play-fill"></i> Começar</span>
+      </button>
+    </div>
+  </div>
+
   <script>
-    /* O botão só liga depois que um time está marcado, e passa a dizer qual.
-       É o que substitui o `required` no rádio invisível. */
-    const bt = document.getElementById('btComecar'), btx = document.getElementById('btComecarTxt');
+    /* Enter no campo de nome dispara o envio implícito do formulário — e sem
+       time marcado isso iria e voltaria do servidor só pra trazer um erro.
+       Barra aqui mesmo: o jeito de começar é marcar um time. */
+    document.getElementById('formTemporada').addEventListener('submit', ev => {
+      if (!document.querySelector('input[name=fba_team_id]:checked')) ev.preventDefault();
+    });
+    const bar = document.getElementById('confirmaBar');
+    const cbLogo = document.getElementById('cbLogo'), cbEs = document.getElementById('cbEs');
     document.querySelectorAll('input[name=fba_team_id]').forEach(r => r.addEventListener('change', () => {
-      bt.disabled = false;
-      btx.textContent = 'Começar com o ' + r.dataset.nome;
+      document.getElementById('cbNome').textContent = r.dataset.nome;
+      document.getElementById('cbMult').textContent = 'cada etapa paga ' + r.dataset.mult.replace('.', ',') + 'x';
+      if (r.dataset.logo) {
+        cbLogo.src = r.dataset.logo; cbLogo.style.display = ''; cbEs.style.display = 'none';
+      } else {
+        cbEs.textContent = r.dataset.nome.slice(0, 2).toUpperCase();
+        cbEs.style.background = r.dataset.cor;
+        cbEs.style.display = 'grid'; cbLogo.style.display = 'none';
+      }
+      bar.classList.add('on');
     }));
   </script>
 
@@ -470,23 +677,25 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
   $corFora = $cor($tc[$foraId]['primary_color'] ?? '', '#64748b');
   $euCasa  = $casaId === $est['gm_id'];
   $ganhei  = $euCasa ? (int) $jg['home_pts'] > (int) $jg['away_pts'] : (int) $jg['away_pts'] > (int) $jg['home_pts'];
-  $etapa   = $jg['stage'] !== 'regular' ? strtoupper((string) $jg['stage']) : 'Temporada regular';
+  $etapa   = $jg['stage'] !== 'regular' ? strtoupper((string) $jg['stage']) : 'TEMPORADA REGULAR';
 ?>
-  <div class="tv" style="--corA:<?= e($corFora) ?>;--corB:<?= e($corCasa) ?>">
+  <div class="tv" style="--corA:<?= e($corFora) ?>55;--corB:<?= e($corCasa) ?>55">
     <div class="tv-placar">
+      <span class="tv-vivo" id="tvVivo"><i></i>AO VIVO</span>
+      <span class="tv-etapa"><?= e($etapa) ?></span>
       <?php foreach ([[$foraId, 'fora', $corFora], [null, null, null], [$casaId, 'casa', $corCasa]] as [$tid, $lado, $c]):
         if ($tid === null): ?>
           <div class="tv-meio">
-            <div class="tv-q" id="tvQ">1º QUARTO</div>
-            <div class="tv-relogio placar-font" id="tvRelogio">12:00</div>
+            <span class="tv-q" id="tvQ">1º QUARTO</span>
+            <span class="tv-relogio" id="tvRelogio">12:00</span>
           </div>
         <?php continue; endif;
         $t = $tc[$tid]; ?>
-        <div class="tv-time">
+        <div class="tv-time" id="lado<?= $lado ?>">
           <?php if (!empty($t['logo_url'])): ?><img src="<?= e($t['logo_url']) ?>" alt="">
           <?php else: ?><span class="es" style="background:<?= e($c) ?>"><?= e($t['abbr']) ?></span><?php endif; ?>
           <span class="ab"><?= e($t['abbr']) ?></span>
-          <span class="pt placar-font" id="pt<?= $lado ?>">0</span>
+          <span class="pt" id="pt<?= $lado ?>">0</span>
         </div>
       <?php endforeach; ?>
     </div>
@@ -495,8 +704,8 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
     <div class="tv-ctrl">
       <button class="btn" id="btPausar" style="padding:8px 14px"><i class="bi bi-pause-fill"></i> Pausar</button>
       <div class="vel">
-        <button data-v="1">1x</button><button data-v="2" class="on">2x</button>
-        <button data-v="4">4x</button><button data-v="10">10x</button>
+        <button data-v="1"><span>1x</span></button><button data-v="2" class="on"><span>2x</span></button>
+        <button data-v="4"><span>4x</span></button><button data-v="10"><span>10x</span></button>
       </div>
       <button class="btn btn-fraco" id="btPular" style="padding:8px 14px;margin-left:auto">Pular pro fim</button>
     </div>
@@ -505,9 +714,9 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
 
     <div class="tv-fim" id="tvFim" style="display:none">
       <div class="r <?= $ganhei ? 'ganhou' : 'perdeu' ?>"><?= $ganhei ? 'Vitória!' : 'Derrota' ?></div>
-      <p class="dim"><?= e($etapa) ?><?= (int) $jg['ot'] > 0 ? ' · ' . (int) $jg['ot'] . ' prorrogação' . ((int) $jg['ot'] > 1 ? 'ões' : '') : '' ?></p>
+      <p class="dim" style="margin:4px 0 14px"><?= (int) $jg['ot'] > 0 ? (int) $jg['ot'] . ' prorrogação' . ((int) $jg['ot'] > 1 ? 'ões' : '') : e(ucfirst(mb_strtolower($etapa))) ?></p>
       <div class="linha-btns" style="justify-content:center">
-        <form method="post"><button class="btn btn-fba btn-g" name="acao" value="proximo"><i class="bi bi-fast-forward-fill"></i> Próximo jogo</button></form>
+        <form method="post"><button class="cta" name="acao" value="proximo"><span><i class="bi bi-fast-forward-fill"></i> Próximo jogo</span></button></form>
         <a class="btn" href="/games/games/temporada.php">Voltar à temporada</a>
       </div>
     </div>
@@ -534,6 +743,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
   const CASA  = <?= $casaId ?>;
   const Q_ROT = {Q1:'1º QUARTO', Q2:'2º QUARTO', Q3:'3º QUARTO', Q4:'4º QUARTO',
                  PR1:'PRORROGAÇÃO', PR2:'2ª PRORROGAÇÃO', PR3:'3ª PRORROGAÇÃO', FIM:'FIM'};
+  const COR_LADO = {casa:'<?= e($corCasa) ?>', fora:'<?= e($corFora) ?>'};
 
   const $ = id => document.getElementById(id);
   const feed = $('tvFeed');
@@ -552,9 +762,17 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
     }
     const cesta = ev.t === 'made' || ev.t === 'ft';
     const tres  = ev.t === 'made' && ev.pts === 3;
+    const lado  = ev.team === CASA ? 'casa' : 'fora';
+    if (cesta) {
+      // O lado que pontuou pisca com a própria cor — dá pra acompanhar o
+      // jogo só pelo placar, sem ler o feed.
+      const bloco = $('lado' + lado);
+      bloco.classList.remove('flash'); void bloco.offsetWidth; bloco.classList.add('flash');
+    }
     const div = document.createElement('div');
     div.className = 'lance' + (tres ? ' cesta3' : cesta ? ' cesta' : '')
                   + (ev.t === 'injury' || ev.t === 'timeout' ? ' evento' : '');
+    if (cesta && !tres) div.style.borderLeftColor = COR_LADO[lado];
     div.innerHTML = '<span class="rl">' + (ev.clock || '') + '</span><span class="tx"></span>';
     div.querySelector('.tx').textContent = ev.text || '';
     feed.prepend(div);
@@ -585,6 +803,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
     $('tvRelogio').textContent = '0:00';
     $('tvBarra').style.width = '100%';
     $('tvFim').style.display = 'block';
+    $('tvVivo').style.display = 'none';
     $('btPausar').disabled = true;
     $('btPular').disabled = true;
     // O jogo acabou: o box score é a próxima coisa que a pessoa quer ver.
@@ -625,16 +844,16 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
 ?>
 
   <div class="hero" style="--time:<?= e($corTime) ?>">
+    <?php if (!empty($meu['logo_url'])): ?><img class="dagua" src="<?= e($meu['logo_url']) ?>" alt=""><?php endif; ?>
     <div class="hero-topo">
       <?php if (!empty($meu['logo_url'])): ?><img class="hero-escudo" src="<?= e($meu['logo_url']) ?>" alt="">
       <?php else: ?><span class="hero-escudo" style="background:<?= e($corTime) ?>"><?= e($meu['abbr']) ?></span><?php endif; ?>
       <div style="flex:1;min-width:0">
-        <div class="eyebrow"><?= e($est['liga']) ?> · <?= e($faseRot) ?></div>
+        <div class="eyebrow"><?= e($est['liga']) ?> · <?= e($faseRot) ?> · GM <?= e($est['gm_nome']) ?></div>
         <h1><?= e(temporadaNome($meu)) ?></h1>
         <div class="campanha">
-          <?= (int) $meu['wins'] ?>–<?= (int) $meu['losses'] ?>
+          <b><?= (int) $meu['wins'] ?>–<?= (int) $meu['losses'] ?></b>
           <?php if ($est['posicao']): ?> · <?= $est['posicao'] ?>º no <?= $meu['conf'] === 'E' ? 'Leste' : 'Oeste' ?><?php endif; ?>
-          · GM <?= e($est['gm_nome']) ?>
         </div>
       </div>
     </div>
@@ -650,68 +869,61 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
         $casa = (int) $g['home_id'] === $est['gm_id'];
         $v = (int) ($casa ? $g['home_pts'] : $g['away_pts']) > (int) ($casa ? $g['away_pts'] : $g['home_pts']);
       ?><a class="chip <?= $v ? 'v' : 'd' ?>" href="?jogo=<?= (int) $g['id'] ?>&vivo=1"
-           title="<?= $v ? 'Vitória' : 'Derrota' ?> — rever"><?= $v ? 'V' : 'D' ?></a><?php endforeach; ?>
+           title="<?= $v ? 'Vitória' : 'Derrota' ?> — rever"><span><?= $v ? 'V' : 'D' ?></span></a><?php endforeach; ?>
     </div>
     <?php endif; ?>
     <?php if ($fase === 'offseason'): ?>
-      <button class="btn-resumo" id="abrirResumo"><i class="bi bi-trophy-fill"></i> Ver o resumo da temporada</button>
+      <button class="btn-resumo" id="abrirResumo"><i class="bi bi-trophy-fill"></i> <b>Ver o resumo da temporada</b></button>
     <?php endif; ?>
   </div>
 
   <?php if ($fase !== 'offseason'): $prox = temporadaProximoAdversario($est['gm_id']); ?>
-  <div class="painel">
-    <h2><i class="bi bi-broadcast"></i> Próximo jogo</h2>
-    <?php if ($prox):
-      $euEmCasa = (int) $prox['home_id'] === $est['gm_id'];
-      $pre = $euEmCasa ? 'away_' : 'home_';
-      $advCor = $cor($prox[$pre . 'cor']);
-    ?>
-      <div class="duelo">
-        <div class="lado">
-          <?php if (!empty($meu['logo_url'])): ?><img src="<?= e($meu['logo_url']) ?>" alt="">
-          <?php else: ?><span class="es" style="background:<?= e($corTime) ?>"><?= e($meu['abbr']) ?></span><?php endif; ?>
-          <b><?= e(temporadaNome($meu)) ?></b>
-          <small><?= (int) $meu['wins'] ?>–<?= (int) $meu['losses'] ?> · <?= $euEmCasa ? 'em casa' : 'fora' ?></small>
-        </div>
-        <span class="x">×</span>
-        <div class="lado">
-          <?php if (!empty($prox[$pre . 'logo'])): ?><img src="<?= e($prox[$pre . 'logo']) ?>" alt="">
-          <?php else: ?><span class="es" style="background:<?= e($advCor) ?>"><?= e($prox[$pre . 'abbr']) ?></span><?php endif; ?>
-          <b><?= e(temporadaNome($prox, $pre)) ?></b>
-          <small><?= (int) $prox[$pre . 'v'] ?>–<?= (int) $prox[$pre . 'd'] ?></small>
-        </div>
+  <div class="sec"><div class="tag"><span>Próximo jogo</span></div></div>
+  <?php if ($prox):
+    $euEmCasa = (int) $prox['home_id'] === $est['gm_id'];
+    $pre = $euEmCasa ? 'away_' : 'home_';
+    $advCor = $cor($prox[$pre . 'cor']);
+  ?>
+    <div class="duelo" style="--cA:<?= e($corTime) ?>44;--cB:<?= e($advCor) ?>44">
+      <div class="lado">
+        <?php if (!empty($meu['logo_url'])): ?><img src="<?= e($meu['logo_url']) ?>" alt="">
+        <?php else: ?><span class="es" style="background:<?= e($corTime) ?>"><?= e($meu['abbr']) ?></span><?php endif; ?>
+        <b><?= e(temporadaNome($meu)) ?></b>
+        <small><?= (int) $meu['wins'] ?>–<?= (int) $meu['losses'] ?> · <?= $euEmCasa ? 'em casa' : 'fora' ?></small>
       </div>
-      <?php /* DOIS JEITOS DE VER O MESMO JOGO: acompanhar lance a lance, ou
-               ir direto ao box score. O motor roda igual nos dois — quem
-               simula não está pulando o jogo, está pulando a transmissão. */ ?>
-      <div class="linha-btns" style="justify-content:center">
-        <form method="post" style="flex:1;max-width:300px">
-          <button class="btn btn-fba btn-g" name="acao" value="proximo" style="width:100%">
-            <i class="bi bi-play-circle-fill"></i> Assistir
-          </button>
-        </form>
-        <form method="post" style="flex:1;max-width:300px">
-          <button class="btn btn-g" name="acao" value="simular" style="width:100%">
-            <i class="bi bi-fast-forward-fill"></i> Simular
-          </button>
-        </form>
+      <span class="vs">VS</span>
+      <div class="lado">
+        <?php if (!empty($prox[$pre . 'logo'])): ?><img src="<?= e($prox[$pre . 'logo']) ?>" alt="">
+        <?php else: ?><span class="es" style="background:<?= e($advCor) ?>"><?= e($prox[$pre . 'abbr']) ?></span><?php endif; ?>
+        <b><?= e(temporadaNome($prox, $pre)) ?></b>
+        <small><?= (int) $prox[$pre . 'v'] ?>–<?= (int) $prox[$pre . 'd'] ?></small>
       </div>
-      <div class="linha-btns" style="justify-content:center;margin-top:10px">
-        <form method="post"><input type="hidden" name="n" value="5">
-          <button class="btn btn-fraco" name="acao" value="varios">Pular 5 jogos</button></form>
-        <form method="post"><input type="hidden" name="n" value="82">
-          <button class="btn btn-fraco" name="acao" value="varios">Pular até o fim</button></form>
-      </div>
-      <p class="dim" style="text-align:center;margin:10px 0 0;font-size:12px">
-        <b>Simular</b> vai direto pro box score. <b>Pular</b> resolve vários jogos de uma vez, sem parar em nenhum.
-      </p>
-    <?php else: ?>
+    </div>
+    <?php /* DOIS JEITOS DE VER O MESMO JOGO: acompanhar lance a lance, ou ir
+             direto ao box score. O motor roda igual — quem simula não está
+             pulando o jogo, está pulando a transmissão. */ ?>
+    <div class="linha-btns" style="justify-content:center">
+      <form method="post"><button class="cta" name="acao" value="proximo">
+        <span><i class="bi bi-play-circle-fill"></i> Assistir</span></button></form>
+      <form method="post"><button class="cta cinza" name="acao" value="simular">
+        <span><i class="bi bi-fast-forward-fill"></i> Simular</span></button></form>
+    </div>
+    <div class="linha-btns" style="justify-content:center;margin-top:11px">
+      <form method="post"><input type="hidden" name="n" value="5">
+        <button class="btn btn-fraco" name="acao" value="varios">Pular 5 jogos</button></form>
+      <form method="post"><input type="hidden" name="n" value="82">
+        <button class="btn btn-fraco" name="acao" value="varios">Pular até o fim</button></form>
+    </div>
+    <p class="dim" style="text-align:center;margin:10px 0 0;font-size:12px">
+      <b>Simular</b> vai direto pro box score. <b>Pular</b> resolve vários jogos de uma vez, sem parar em nenhum.
+    </p>
+  <?php else: ?>
+    <div class="painel">
       <p class="dim">Sem jogo marcado pro seu time agora.</p>
       <form method="post"><input type="hidden" name="n" value="82">
-        <button class="btn btn-fba" name="acao" value="varios"><i class="bi bi-fast-forward-fill"></i> Avançar</button></form>
-    <?php endif; ?>
-  </div>
-  <?php endif; ?>
+        <button class="cta" name="acao" value="varios"><span><i class="bi bi-fast-forward-fill"></i> Avançar</span></button></form>
+    </div>
+  <?php endif; endif; ?>
 
   <?php /* ── CHAVEAMENTO NO LUGAR DA TABELA ───────────────────────────
            Quando a temporada regular acaba, a classificação deixa de ser a
@@ -720,19 +932,19 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
   $chave = in_array($fase, ['playin', 'playoffs', 'offseason'], true)
          ? temporadaChaveamento($est['gm_id']) : null;
   if ($chave && ($chave['playin'] || $chave['rodadas'])): ?>
+  <div class="sec"><div class="tag ouro"><span>Playoffs</span></div></div>
   <div class="painel">
-    <h2><i class="bi bi-trophy-fill" style="color:var(--ouro)"></i> Playoffs</h2>
     <?php if ($chave['playin']): ?>
-      <div class="rodada"><b>Play-in</b>
+      <div class="rodada"><b><span>Play-in</span></b>
       <?php foreach ($chave['playin'] as $g):
         $eu = in_array($est['gm_id'], [(int) $g['home_id'], (int) $g['away_id']], true);
         $casaGanhou = (int) $g['home_pts'] > (int) $g['away_pts']; ?>
         <div class="serie <?= $eu ? 'eu' : '' ?>">
-          <span class="t <?= $g['played'] && $casaGanhou ? '' : ($g['played'] ? 'out' : '') ?>">
+          <span class="t <?= $g['played'] && $casaGanhou ? 'out' : '' ?>">
             <?php if ($g['alogo']): ?><img src="<?= e($g['alogo']) ?>" alt=""><?php else: ?><span class="es" style="background:<?= e($cor($g['acor'])) ?>"><?= e($g['aa']) ?></span><?php endif; ?>
             <?= e(trim($g['ac'] . ' ' . $g['an'])) ?></span>
           <span class="w"><?= $g['played'] ? (int) $g['away_pts'] . '–' . (int) $g['home_pts'] : 'a jogar' ?></span>
-          <span class="t" style="justify-content:flex-end">
+          <span class="t <?= $g['played'] && !$casaGanhou ? 'out' : '' ?>" style="justify-content:flex-end">
             <?= e(trim($g['hc'] . ' ' . $g['hn'])) ?>
             <?php if ($g['hlogo']): ?><img src="<?= e($g['hlogo']) ?>" alt=""><?php else: ?><span class="es" style="background:<?= e($cor($g['hcor'])) ?>"><?= e($g['ha']) ?></span><?php endif; ?>
           </span>
@@ -744,7 +956,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
     <?php $rotR = [1 => 'Primeira rodada', 2 => 'Semifinais de conferência',
                    3 => 'Finais de conferência', 4 => 'Final da FBA'];
     foreach ($chave['rodadas'] as $r => $lista): ?>
-      <div class="rodada"><b><?= e($rotR[$r] ?? ('Rodada ' . $r)) ?></b>
+      <div class="rodada"><b><span><?= e($rotR[$r] ?? ('Rodada ' . $r)) ?></span></b>
       <?php foreach ($lista as $s):
         $vH = (int) $s['winner_id'] === (int) $s['high_seed_id'];
         $vL = (int) $s['winner_id'] === (int) $s['low_seed_id']; ?>
@@ -766,8 +978,9 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
     <?php endforeach; ?>
   </div>
   <?php else: /* temporada regular: a tabela */ ?>
+  <div class="sec"><div class="tag"><span>Classificação</span></div>
+    <span class="sub">1–6 direto<br>7–10 play-in</span></div>
   <div class="painel">
-    <h2><i class="bi bi-table"></i> Classificação</h2>
     <div class="duas">
       <?php foreach (['E' => 'Leste', 'W' => 'Oeste'] as $cf => $rot): ?>
       <div>
@@ -775,9 +988,15 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
           <thead><tr><th><?= $rot ?></th><th class="num2">V</th><th class="num2">D</th><th class="num2">%</th></tr></thead>
           <tbody>
           <?php foreach (array_slice(League::standings($cf), 0, 12) as $i2 => $t):
-            $meuT = (int) $t['id'] === $est['gm_id']; ?>
-            <tr class="<?= $meuT ? 'eu' : '' ?>">
-              <td><span style="color:var(--txt3);font-weight:800"><?= $i2 + 1 ?></span>
+            $meuT = (int) $t['id'] === $est['gm_id'];
+            $pos = $i2 + 1;
+            /* A zona diz mais que o número: verde entra direto, dourado vai
+               ao play-in, o resto briga. O corte tracejado no 10º é a linha
+               que a temporada inteira tenta cruzar. */
+            $zona = $pos <= 6 ? 'po' : ($pos <= 10 ? 'pi' : '');
+          ?>
+            <tr class="<?= $meuT ? 'eu' : '' ?><?= $pos === 10 ? ' corte' : '' ?>">
+              <td><span class="seed <?= $zona ?>"><?= $pos ?></span>
                 <?php if (!empty($t['logo_url'])): ?><img class="mini" src="<?= e($t['logo_url']) ?>" alt="" loading="lazy">
                 <?php else: ?><span class="mini" style="background:<?= e($cor($t['primary_color'])) ?>"><?= e(mb_substr($t['abbr'], 0, 2)) ?></span><?php endif; ?>
                 <?= e(temporadaNome($t)) ?></td>
@@ -795,47 +1014,44 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
   <?php endif; ?>
 
   <?php $race = $est['jogados'] >= 5 ? League::awardRace() : null; if ($race): ?>
-  <div class="painel">
-    <h2><i class="bi bi-award-fill" style="color:var(--ouro)"></i> Corrida pelos prêmios <span class="sub">pts · reb · ast</span></h2>
-    <div class="corridas">
-      <?php
-      $pra = fn($p) => number_format((float) $p['ppg'], 1) . ' · ' . number_format((float) $p['rpg'], 1)
-                     . ' · ' . number_format((float) $p['apg'], 1);
-      $logos = temporadaLogos();
-      // Os apelidos que a liga usa, não os nomes por extenso.
-      foreach ([
-        'mvp'   => ['MVP',  $pra],
-        'mip'   => ['MIP',  fn($p) => '+' . number_format((float) $p['score'], 0) . '% s/ o OVR'],
-        'sexto' => ['6H',   $pra],
-        'dpoy'  => ['DPOY', fn($p) => number_format((float) $p['bpg'], 1) . ' toc · ' . number_format((float) $p['spg'], 1) . ' rb'],
-        'roy'   => ['ROY',  $pra],
-      ] as $k => [$rot, $val]): ?>
-        <div class="corrida"><b class="rot"><?= e($rot) ?></b>
-          <?php if (!empty($race[$k])): foreach (array_slice($race[$k], 0, 3) as $i2 => $p):
-            $lg = $logos[$p['abbr']] ?? null; ?>
-            <div class="l"><span class="p"><?= $i2 + 1 ?></span>
-              <?php if (!empty($lg['logo'])): ?><img class="mini" src="<?= e($lg['logo']) ?>" alt="<?= e($p['abbr']) ?>" title="<?= e($p['abbr']) ?>" loading="lazy" style="margin:0">
-              <?php else: ?><span class="mini" style="margin:0;background:<?= e($cor($lg['cor'] ?? '')) ?>"><?= e(mb_substr($p['abbr'], 0, 2)) ?></span><?php endif; ?>
-              <span class="nm"><?= e($p['name']) ?></span>
-              <span class="vl"><?= e($val($p)) ?></span></div>
-          <?php endforeach; else: ?>
-            <div class="l" style="color:var(--txt3)">Poucos jogos ainda.</div>
-          <?php endif; ?>
-        </div>
-      <?php endforeach; ?>
-    </div>
+  <div class="sec"><div class="tag ouro"><span>Corrida pelos prêmios</span></div>
+    <span class="sub">pts · reb · ast</span></div>
+  <div class="corridas">
+    <?php
+    $pra = fn($p) => number_format((float) $p['ppg'], 1) . ' · ' . number_format((float) $p['rpg'], 1)
+                   . ' · ' . number_format((float) $p['apg'], 1);
+    $logos = temporadaLogos();
+    // Os apelidos que a liga usa, não os nomes por extenso.
+    foreach ([
+      'mvp'   => ['MVP',  $pra],
+      'mip'   => ['MIP',  fn($p) => '+' . number_format((float) $p['score'], 0) . '% s/ o OVR'],
+      'sexto' => ['6H',   $pra],
+      'dpoy'  => ['DPOY', fn($p) => number_format((float) $p['bpg'], 1) . ' toc · ' . number_format((float) $p['spg'], 1) . ' rb'],
+      'roy'   => ['ROY',  $pra],
+    ] as $k => [$rot, $val]): ?>
+      <div class="corrida"><b class="rot"><span><?= e($rot) ?></span></b>
+        <?php if (!empty($race[$k])): foreach (array_slice($race[$k], 0, 3) as $i2 => $p):
+          $lg = $logos[$p['abbr']] ?? null; ?>
+          <div class="l"><span class="p"><?= $i2 + 1 ?></span>
+            <?php if (!empty($lg['logo'])): ?><img class="mini" src="<?= e($lg['logo']) ?>" alt="<?= e($p['abbr']) ?>" title="<?= e($p['abbr']) ?>" loading="lazy" style="margin:0">
+            <?php else: ?><span class="mini" style="margin:0;background:<?= e($cor($lg['cor'] ?? '')) ?>"><?= e(mb_substr($p['abbr'], 0, 2)) ?></span><?php endif; ?>
+            <span class="nm"><?= e($p['name']) ?></span>
+            <span class="vl"><?= e($val($p)) ?></span></div>
+        <?php endforeach; else: ?>
+          <div class="l" style="color:var(--txt3)">Poucos jogos ainda.</div>
+        <?php endif; ?>
+      </div>
+    <?php endforeach; ?>
   </div>
   <?php endif; ?>
 
-  <?php /* O QUE CADA ETAPA PAGA NÃO OCUPA MAIS UM PAINEL.
-           Era uma tabela de cinco linhas parada na tela a temporada inteira,
-           dizendo quase sempre a mesma coisa. O que ela tinha de útil — o
-           multiplicador — já está no topo, e a conta fechada aparece no
-           resumo de fim de temporada, que é quando ela vira notícia. */ ?>
+  <?php /* O QUE CADA ETAPA PAGA NÃO OCUPA MAIS UM PAINEL: o multiplicador
+           está no topo e a conta fechada sai no resumo de fim de temporada,
+           que é quando ela vira notícia. */ ?>
 
+  <div class="sec"><div class="tag" style="background:linear-gradient(135deg,#27334f,#1a2236);box-shadow:none"><span>Recomeçar</span></div></div>
   <div class="painel">
-    <h2><i class="bi bi-arrow-counterclockwise"></i> Recomeçar</h2>
-    <p class="dim">Apagar esta temporada e escolher outro time. O que já foi pago em moeda fica —
+    <p class="dim" style="margin-top:0">Apagar esta temporada e escolher outro time. O que já foi pago em moeda fica —
       mas as etapas que faltavam somem junto.</p>
     <form method="post" onsubmit="return confirm('Apagar esta temporada e começar outra? Não dá pra desfazer.')">
       <button class="btn btn-fraco" name="acao" value="apagar"><i class="bi bi-trash3"></i> Apagar e escolher outro time</button>
@@ -863,12 +1079,12 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
     <div class="modal">
       <button class="modal-x" id="fecharResumo" aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
 
-      <div class="modal-topo" style="--c:<?= e($cor($resumo['campeao']['cor'] ?? '', '#f5c842')) ?>">
+      <div class="modal-topo" style="--c:<?= e($cor($resumo['campeao']['cor'] ?? '', '#f5c842')) ?>66">
         <div class="tacinha"><i class="bi bi-trophy-fill"></i></div>
         <div class="eyebrow"><?= e($est['liga']) ?> · Temporada encerrada</div>
         <?php if ($resumo['campeao']): ?>
           <h3><?= e($resumo['campeao']['nome']) ?></h3>
-          <p class="dim" style="margin:2px 0 0">Campeão da FBA — venceu a final por <?= e($resumo['campeao']['serie']) ?></p>
+          <p class="dim" style="margin:4px 0 0">Campeão da FBA — venceu a final por <?= e($resumo['campeao']['serie']) ?></p>
           <?php if ($resumo['vice']): ?>
             <p class="dim" style="margin:3px 0 0;font-size:12px">Vice: <?= e($resumo['vice']['nome']) ?></p>
           <?php endif; ?>
