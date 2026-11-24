@@ -302,7 +302,13 @@ render_header('Central');
     <section class="panel">
       <?= panel_head('Corrida pelos prêmios', ['icon' => 'award-fill']) ?>
       <div class="race">
+        <?php /* O MIP mostra o SALTO, não a média: o número dele é quanto
+                 está rendendo acima do que o OVR previa, e é isso que explica
+                 por que um nome de 12 pontos aparece na frente de um de 20.
+                 @see League::mipRace() */ ?>
         <?php foreach (['mvp' => ['MVP', fn($p) => number_format((float) $p['ppg'], 1) . ' pts'],
+                        'mip' => ['Evolução', fn($p) => '+' . number_format((float) $p['score'], 1) . ' acima do OVR'],
+                        'sexto' => ['6º Homem', fn($p) => number_format((float) $p['ppg'], 1) . ' pts'],
                         'dpoy' => ['Defensor', fn($p) => number_format((float) $p['bpg'], 1) . ' toc · ' . number_format((float) $p['spg'], 1) . ' rb'],
                         'roy' => ['Novato', fn($p) => number_format((float) $p['ppg'], 1) . ' pts']] as $k => [$label, $val]): ?>
           <div class="race-col">

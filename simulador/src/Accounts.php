@@ -361,6 +361,89 @@ class Accounts
         return ['ok' => true, 'save_id' => $saveId];
     }
 
+    /**
+     * MINHA TEMPORADA: um save com os times e elencos ATUAIS da FBA.
+     *
+     * É irmão do createSave() acima, não uma variação dele: o caminho da NBA
+     * tem era, técnico com estilo, potencial aleatório, janela de picks, cap e
+     * pré-temporada com free agency — nada disso existe aqui. Aqui a liga é a
+     * que está no banco do site hoje, a temporada começa no dia 1 e o jogo é
+     * simular os 82 jogos do seu time até o título.
+     *
+     * O time é escolhido pelo id DA FBA, não pela sigla: a sigla nasce aqui
+     * dentro (a FBA não guarda abreviação) e só existe depois de instalar.
+     */
+    public static function createSaveFBA(int $userId, int $slot, string $name, string $gmName,
+                                         string $liga, int $fbaTeamId): array
+    {
+        require_once __DIR__ . '/InstallerFBA.php';
+        require_once __DIR__ . '/League.php';
+
+        if (!in_array($slot, range(1, self::MAX_SAVES), true)) return ['error' => 'Slot inválido.'];
+        if (!in_array($slot, self::freeSlots($userId), true)) return ['error' => 'Esse slot já está em uso.'];
+
+        $liga = strtoupper(trim($liga));
+        if (!in_array($liga, InstallerFBA::LIGAS, true)) return ['error' => 'Liga inválida.'];
+        if ($fbaTeamId <= 0) return ['error' => 'Escolha um time.'];
+
+        $name = trim($name) ?: ('FBA ' . $liga);
+        $gmName = trim($gmName) ?: 'GM';
+
+        $db = self::conn();
+        $db->prepare("INSERT INTO saves(user_id,slot,name,gm_name,team_abbr,era,era_name,coach_style,difficulty,potential_type,created_at,updated_at)
+                      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+           ->execute([$userId, $slot, $name, $gmName, '', 'fba', 'FBA ' . $liga,
+                      'equilibrado', 'normal', 'real', date('c'), date('c')]);
+        $saveId = (int) $db->lastInsertId();
+
+        try {
+            Database::useSavePath(self::savePath($saveId));
+            InstallerFBA::run($liga);
+        } catch (Throwable $e) {
+            // Save pela metade é pior que save nenhum: ele apareceria na lista
+            // ocupando um slot e quebraria ao carregar.
+            $db->prepare("DELETE FROM saves WHERE id = ?")->execute([$saveId]);
+            @unlink(self::savePath($saveId));
+            return ['error' => 'Não deu pra montar a temporada: ' . $e->getMessage()];
+        }
+
+        $st = Database::conn()->prepare("SELECT * FROM teams WHERE fba_team_id = ?");
+        $st->execute([$fbaTeamId]);
+        $team = $st->fetch() ?: (League::allTeams()[0] ?? null);
+        if (!$team) {
+            $db->prepare("DELETE FROM saves WHERE id = ?")->execute([$saveId]);
+            @unlink(self::savePath($saveId));
+            return ['error' => 'Esse time não está na ' . $liga . '.'];
+        }
+
+        League::setGmTeam((int) $team['id']);
+        Database::setMeta('gm_name', $gmName);
+        Database::setMeta('save_name', $name);
+        Database::setMeta('coach_style', 'equilibrado');
+        Database::setMeta('difficulty', 'normal');
+        Database::setMeta('potential_type', 'real');
+
+        // Técnico do GM, pra tela de time não ficar sem comissão.
+        $attrs = Database::coachAttrsForStyle('equilibrado');
+        Database::conn()->prepare("DELETE FROM coaches WHERE team_id=?")->execute([(int) $team['id']]);
+        Database::conn()->prepare(
+            "INSERT INTO coaches(team_id,name,style,ofensivo,defensivo,desenvolvimento,gestao,intensidade)
+             VALUES(?,?,'equilibrado',?,?,?,?,?)"
+        )->execute([(int) $team['id'], $gmName, $attrs['ofensivo'], $attrs['defensivo'],
+                    $attrs['desenvolvimento'], $attrs['gestao'], $attrs['intensidade']]);
+
+        /* SEM PRÉ-TEMPORADA. Lá é onde entram trocas e free agency, e a
+           temporada da FBA começa com o elenco que a liga tem hoje — mexer
+           nele aqui seria inventar uma FBA que não existe. Dia 1, bola ao
+           alto. */
+        Database::setMeta('phase', 'regular');
+
+        $db->prepare("UPDATE saves SET team_abbr=? WHERE id=?")->execute([$team['abbr'], $saveId]);
+
+        self::remember('sim_save_id', $saveId);
+        return ['ok' => true, 'save_id' => $saveId, 'team' => $team['city'] . ' ' . $team['name']];
+    }
+
     /** Ativa um save: valida posse, aponta o Database para o arquivo do save. */
     public static function activate(int $saveId): array
     {

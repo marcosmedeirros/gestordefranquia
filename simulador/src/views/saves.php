@@ -58,16 +58,24 @@ page_head('Meus saves', [
     'sub' => $saves
         ? 'Continue uma dinastia ou comece outra. Cada save guarda uma liga inteira: elencos, finanças e história.'
         : 'Comece sua primeira dinastia: escolha a era, a franquia e o jeito do seu técnico.',
-    'actions' => $free ? '<button type="button" class="btn btn-team btn-lg" data-open-wizard>' . bi('plus-lg') . 'Nova dinastia</button>' : '',
+    'actions' => $free
+        ? '<a class="btn btn-lg" href="' . url('novafba') . '">' . bi('trophy-fill') . 'Minha Temporada (FBA)</a>'
+          . '<button type="button" class="btn btn-team btn-lg" data-open-wizard>' . bi('plus-lg') . 'Nova dinastia</button>'
+        : '',
 ]);
 ?>
 <div class="slots">
   <?php foreach ($saves as $s):
-    $t = $teamByAbbr[$s['team_abbr'] ?? ''] ?? null;
+    /* SAVE DA FBA NÃO TEM TIME DA NBA. Procurar a sigla em data/teams.php
+       devolvia null e o cartão saía sem nome e sem escudo — o save parecia
+       quebrado. Aqui ele se identifica pela liga, que é o que importa nele. */
+    $ehFba = ($s['era'] ?? '') === 'fba';
+    $t = $ehFba ? null : ($teamByAbbr[$s['team_abbr'] ?? ''] ?? null);
     $isActive = $active && (int) $s['id'] === $active;
     $updated = date('d/m/Y', strtotime($s['updated_at'] ?? $s['created_at']));
-    $diff = ['facil' => 'Fácil', 'normal' => 'Normal', 'dificil' => 'Difícil'][$s['difficulty'] ?? ''] ?? '';
+    $diff = $ehFba ? '' : (['facil' => 'Fácil', 'normal' => 'Normal', 'dificil' => 'Difícil'][$s['difficulty'] ?? ''] ?? '');
     $teamName = $t ? $t['city'] . ' ' . $t['name'] : (string) $s['team_abbr'];
+    if ($ehFba) $teamName = trim((string) $s['team_abbr'] . ' · ' . (string) ($s['era_name'] ?? 'FBA'), ' ·');
   ?>
   <article class="slot<?= $isActive ? ' is-active' : '' ?>" style="<?= e(saves_team_style($t)) ?>">
     <div class="slot-top">

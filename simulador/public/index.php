@@ -44,6 +44,27 @@ if ($action === 'create-save') {
         header('Location: ' . url('saves', ['err' => 'Erro ao criar save: ' . $e->getMessage()])); exit;
     }
 }
+/* MINHA TEMPORADA (FBA). Mora aqui em cima junto com o create-save da NBA
+   porque, como ele, acontece ANTES de existir save ativo. */
+if ($action === 'create-save-fba') {
+    try {
+        $r = Accounts::createSaveFBA(
+            Accounts::userId(),
+            (int) ($_POST['slot'] ?? 0),
+            (string) ($_POST['name'] ?? ''),
+            (string) ($_POST['gm_name'] ?? ''),
+            (string) ($_POST['liga'] ?? ''),
+            (int) ($_POST['fba_team_id'] ?? 0)
+        );
+        if (isset($r['error'])) {
+            header('Location: ' . url('novafba', ['liga' => $_POST['liga'] ?? '', 'err' => $r['error']]));
+            exit;
+        }
+        header('Location: ' . url('home', ['newsave' => 1])); exit;
+    } catch (Throwable $e) {
+        header('Location: ' . url('novafba', ['liga' => $_POST['liga'] ?? '', 'err' => $e->getMessage()])); exit;
+    }
+}
 if ($action === 'load-save') {
     $r = Accounts::activate((int) ($_GET['save'] ?? 0));
     if (isset($r['error'])) { header('Location: ' . url('saves', ['err' => $r['error']])); exit; }
@@ -61,9 +82,10 @@ if ($saveId) {
     if (isset($act['error'])) { Accounts::forgetActiveSave(); $saveId = null; }
 }
 if (!Accounts::activeSaveId()) {
+    // A escolha do time da FBA também vive antes de haver save: é ela que cria um.
     $page = $_GET['p'] ?? 'saves';
-    if ($page !== 'saves') { header('Location: ' . url('saves')); exit; }
-    require dirname(__DIR__) . '/src/views/saves.php';
+    if (!in_array($page, ['saves', 'novafba'], true)) { header('Location: ' . url('saves')); exit; }
+    require dirname(__DIR__) . '/src/views/' . ($page === 'novafba' ? 'novafba.php' : 'saves.php');
     exit;
 }
 
@@ -312,6 +334,7 @@ $map = [
     'awards' => 'awards.php',
     'search' => 'search.php',
     'saves' => 'saves.php',
+    'novafba' => 'novafba.php',
 ];
 $file = $views . ($map[$page] ?? 'home.php');
 if (!file_exists($file)) $file = $views . 'home.php';

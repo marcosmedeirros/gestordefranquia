@@ -225,7 +225,8 @@ class Installer
      */
     private const TARGET_DAYS = 82;
 
-    private static function buildSchedule(array $teamIds): array
+    /** O calendário do método do círculo. Público porque o InstallerFBA usa o mesmo. */
+    public static function buildSchedule(array $teamIds): array
     {
         $target = self::TARGET_DAYS;
         $arr = $teamIds;

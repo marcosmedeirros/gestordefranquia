@@ -173,7 +173,88 @@ class League
              ORDER BY score DESC LIMIT 5"
         )->fetchAll();
 
-        return ['mvp' => $mvp, 'dpoy' => $dpoy, 'roy' => $roy];
+        /* ── SEXTO HOMEM ──────────────────────────────────────────────
+           Quem produz mais sem ser titular. O corte é `is_starter`, que é o
+           mesmo que decide quem começa o jogo no motor — então o prêmio
+           premia exatamente quem a liga vê saindo do banco. */
+        $sexto = $db->query(
+            "SELECT p.id, p.name, t.abbr,
+                    s.gp,
+                    ROUND(s.pts * 1.0 / MAX(s.gp,1), 1) AS ppg,
+                    ROUND(s.reb * 1.0 / MAX(s.gp,1), 1) AS rpg,
+                    ROUND(s.ast * 1.0 / MAX(s.gp,1), 1) AS apg,
+                    ROUND((s.pts * 1.0 / MAX(s.gp,1))
+                        + (s.reb * 1.0 / MAX(s.gp,1)) * 0.70
+                        + (s.ast * 1.0 / MAX(s.gp,1)) * 0.80, 2) AS score
+             FROM season_stats s
+             JOIN players p ON p.id = s.player_id
+             JOIN teams t ON t.id = p.team_id
+             WHERE s.gp >= 5 AND p.team_id IS NOT NULL AND p.is_starter = 0
+             ORDER BY score DESC LIMIT 5"
+        )->fetchAll();
+
+        return ['mvp' => $mvp, 'dpoy' => $dpoy, 'roy' => $roy,
+                'sexto' => $sexto, 'mip' => self::mipRace()];
+    }
+
+    /**
+     * A CORRIDA DE EVOLUÇÃO (MIP), medida contra o que o OVR prometia.
+     *
+     * O MIP da NBA compara com a temporada passada. Aqui não existe temporada
+     * passada — o save começa com os elencos de hoje —, então a régua é outra:
+     * quanto o jogador rende ACIMA do que o OVR dele previa.
+     *
+     * "Previa" sai da própria liga, não de uma fórmula: os jogadores são
+     * agrupados em faixas de OVR de cinco em cinco, e a referência de cada um
+     * é a média da faixa dele. Assim o prêmio não vira "quem tem o OVR mais
+     * alto" nem "quem tem o mais baixo" — vira quem está destoando da turma
+     * dele, que é o que a palavra evolução quer dizer.
+     *
+     * Faixa com menos de três jogadores não serve de referência (um sozinho é
+     * sempre a própria média, e seria sempre zero) e fica de fora.
+     */
+    private static function mipRace(int $limit = 5): array
+    {
+        $db = Database::conn();
+        $linhas = $db->query(
+            "SELECT p.id, p.name, p.ovr, t.abbr,
+                    s.gp,
+                    ROUND(s.pts * 1.0 / MAX(s.gp,1), 1) AS ppg,
+                    ROUND(s.reb * 1.0 / MAX(s.gp,1), 1) AS rpg,
+                    ROUND(s.ast * 1.0 / MAX(s.gp,1), 1) AS apg,
+                    ROUND((s.pts * 1.0 / MAX(s.gp,1))
+                        + (s.reb * 1.0 / MAX(s.gp,1)) * 0.70
+                        + (s.ast * 1.0 / MAX(s.gp,1)) * 0.80, 2) AS score
+             FROM season_stats s
+             JOIN players p ON p.id = s.player_id
+             JOIN teams t ON t.id = p.team_id
+             WHERE s.gp >= 5 AND p.team_id IS NOT NULL"
+        )->fetchAll();
+        if (!$linhas) return [];
+
+        $faixa = fn(int $ovr) => (int) floor($ovr / 5) * 5;
+
+        $soma = [];
+        $quantos = [];
+        foreach ($linhas as $l) {
+            $f = $faixa((int) $l['ovr']);
+            $soma[$f] = ($soma[$f] ?? 0) + (float) $l['score'];
+            $quantos[$f] = ($quantos[$f] ?? 0) + 1;
+        }
+
+        $saida = [];
+        foreach ($linhas as $l) {
+            $f = $faixa((int) $l['ovr']);
+            if (($quantos[$f] ?? 0) < 3) continue;
+            $esperado = $soma[$f] / $quantos[$f];
+            $l['esperado'] = round($esperado, 2);
+            $l['score'] = round((float) $l['score'] - $esperado, 2);  // o salto
+            if ($l['score'] <= 0) continue;                            // não evoluiu
+            $saida[] = $l;
+        }
+
+        usort($saida, fn($a, $b) => $b['score'] <=> $a['score']);
+        return array_slice($saida, 0, $limit);
     }
 
     public static function gamesByDay(int $day): array
