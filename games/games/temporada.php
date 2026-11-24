@@ -932,6 +932,17 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
       <div><b><?= $est['rank'] ?>º</b><span>de <?= $est['times'] ?></span></div>
       <div><b style="color:var(--ouro)"><?= TemporadaPremios::multiplicador() ?>x</b><span>moedas</span></div>
     </div>
+    <?php /* O teto só aparece quando ele está perto — avisar de um limite
+             que ninguém vai encostar é ruído na tela de quem joga normal. */
+    $cabe = TemporadaPremios::quantoCabeNaSemana($user_id);
+    if ($cabe < 400): ?>
+      <p style="margin:12px 0 0;font-size:11.5px;color:#ffffffa8;font-weight:600">
+        <i class="bi bi-hourglass-split"></i>
+        <?= $cabe > 0
+          ? 'Cabem mais ' . number_format($cabe, 0, ',', '.') . ' moedas no seu teto desta semana.'
+          : 'Teto semanal de moedas atingido — a temporada continua, mas as etapas não pagam até a semana virar.' ?>
+      </p>
+    <?php endif; ?>
     <?php if ($meusJogos): ?>
     <div class="faixa">
       <?php foreach (array_reverse($meusJogos) as $g):

@@ -39,6 +39,22 @@ class TemporadaPremios
     /** Quanto o pior elenco da liga ganha a mais que o melhor. */
     private const BONUS_AZARAO = 1.5;   // força 0 paga 2,5x; força 100 paga 1x
 
+    /**
+     * TETO SEMANAL — a trava contra o moinho.
+     *
+     * O registro do que já foi pago (`fba_pagos`) mora DENTRO do save, e o
+     * save é apagável pelo botão "Recomeçar". Sem mais nada, o caminho do
+     * dinheiro infinito era: criar temporada, "simular temporada regular"
+     * (oito segundos), levar o que a campanha pagasse, apagar, repetir. Um
+     * laço no console faria isso centenas de vezes por hora.
+     *
+     * O teto mora no banco dos GAMES, que o jogador não apaga. 1.500 por
+     * semana são duas campanhas perfeitas do pior elenco da liga — quem
+     * joga pra valer nunca encosta nele, e quem tenta moer para no segundo
+     * ciclo.
+     */
+    public const TETO_SEMANA = 1500;
+
     /** É um save do modo FBA? Fora dele nada aqui roda. */
     public static function ativo(): bool
     {
@@ -171,7 +187,21 @@ class TemporadaPremios
             if (!$novas) return [];
 
             $total = array_sum(array_column($novas, 'moedas'));
+
+            /* O TETO DA SEMANA, antes de creditar. Quem já moeu o limite
+               continua jogando — a temporada corre igual, o chaveamento
+               acontece igual —, só não leva moeda. A etapa fica marcada como
+               paga do mesmo jeito: sem isso ela voltaria a cada carregamento
+               da tela, e a pessoa veria a mesma notícia pra sempre. */
+            $cabe = self::quantoCabeNaSemana($siteUserId);
+            if ($cabe <= 0) {
+                Database::setMeta('fba_pagos', json_encode(array_merge($pagas, array_column($novas, 'etapa'))));
+                return [];
+            }
+            if ($total > $cabe) $total = $cabe;   // paga o que ainda cabe
+
             if (!self::creditar($siteUserId, $total)) return [];
+            self::anotarPagamento($siteUserId, $total);
 
             // Só anota DEPOIS de a moeda entrar: se o crédito falhou, a etapa
             // continua pendente e sai na próxima vez que a pessoa abrir a tela.
@@ -180,6 +210,64 @@ class TemporadaPremios
         } catch (Throwable $e) {
             error_log('[fba-premios] ' . $e->getMessage());
             return [];
+        }
+    }
+
+    /**
+     * A TABELA DO TETO, no banco dos Games.
+     *
+     * Mora FORA do save de propósito: o save é apagável pelo botão
+     * "Recomeçar", e um registro que o jogador apaga não tranca nada.
+     */
+    private static function garantirTabelaTeto(PDO $pdo): void
+    {
+        static $pronto = false;
+        if ($pronto) return;
+        $pronto = true;
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS temporada_pagamentos (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                moedas INT NOT NULL,
+                criado_em DATETIME NOT NULL,
+                INDEX idx_tp_user_data (user_id, criado_em)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        } catch (Throwable $e) {
+            error_log('[fba-premios] tabela do teto: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Quanto ainda cabe no teto desta semana. 7 dias corridos, não semana
+     * do calendário — assim não existe a virada da meia-noite de domingo
+     * em que o teto zera e dá pra moer o dobro de uma vez.
+     */
+    public static function quantoCabeNaSemana(int $userId): int
+    {
+        if ($userId <= 0) return 0;
+        try {
+            $pdo = TemporadaLiga::fbaConn();
+            self::garantirTabelaTeto($pdo);
+            $st = $pdo->prepare("SELECT COALESCE(SUM(moedas), 0) FROM temporada_pagamentos
+                                  WHERE user_id = ? AND criado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
+            $st->execute([$userId]);
+            return max(0, self::TETO_SEMANA - (int) $st->fetchColumn());
+        } catch (Throwable $e) {
+            error_log('[fba-premios] teto: ' . $e->getMessage());
+            // Banco fora do ar não pode virar dinheiro infinito.
+            return 0;
+        }
+    }
+
+    private static function anotarPagamento(int $userId, int $moedas): void
+    {
+        try {
+            $pdo = TemporadaLiga::fbaConn();
+            self::garantirTabelaTeto($pdo);
+            $pdo->prepare("INSERT INTO temporada_pagamentos (user_id, moedas, criado_em) VALUES (?, ?, NOW())")
+                ->execute([$userId, $moedas]);
+        } catch (Throwable $e) {
+            error_log('[fba-premios] anotar: ' . $e->getMessage());
         }
     }
 
