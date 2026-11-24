@@ -34,7 +34,7 @@ $bVenceuCasa = (int) $bj['home_pts'] > (int) $bj['away_pts'];
         if ($idx === 1): ?><span class="bx">×</span><?php endif; ?>
         <div class="bt <?= $venceu ? 'venceu' : '' ?>">
           <?php $l = $btc[$tid]['logo_url'] ?? ''; ?>
-          <?php if ($l): ?><img src="<?= e($l) ?>" alt="">
+          <?php if ($l): ?><img src="<?= e(temporadaEscudo($l, 48)) ?>" alt="" width="48" height="48" decoding="async">
           <?php else: ?><span class="es" style="background:<?= e($cor($btc[$tid]['primary_color'] ?? '')) ?>"><?= e($btc[$tid]['abbr'] ?? '') ?></span><?php endif; ?>
           <b><?= e(trim(($btc[$tid]['city'] ?? '') . ' ' . ($btc[$tid]['name'] ?? ''))) ?></b>
           <span class="pts"><?= (int) ($tid === $bCasa ? $bj['home_pts'] : $bj['away_pts']) ?></span>
@@ -46,7 +46,7 @@ $bVenceuCasa = (int) $bj['home_pts'] > (int) $bj['away_pts'];
       <?php foreach ([$bFora, $bCasa] as $tid): ?>
         <b class="bloco-rot" style="display:flex;align-items:center;gap:8px">
           <?php $l = $btc[$tid]['logo_url'] ?? ''; ?>
-          <?php if ($l): ?><img src="<?= e($l) ?>" alt="" style="width:20px;height:20px;border-radius:6px;object-fit:cover"><?php endif; ?>
+          <?php if ($l): ?><img src="<?= e(temporadaEscudo($l, 20)) ?>" alt="" width="20" height="20" loading="lazy" style="width:20px;height:20px;border-radius:6px;object-fit:cover"><?php endif; ?>
           <?= e(trim(($btc[$tid]['city'] ?? '') . ' ' . ($btc[$tid]['name'] ?? ''))) ?>
         </b>
         <table>

@@ -681,7 +681,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
         <input type="radio" name="fba_team_id" value="<?= (int) $t['id'] ?>"
                data-nome="<?= e($nome) ?>" data-logo="<?= e($logo) ?>" data-mult="<?= $mult ?>" data-cor="<?= e($c) ?>">
         <span class="check"><i class="bi bi-check-lg"></i></span>
-        <?php if ($logo): ?><img class="escudo" src="<?= e($logo) ?>" alt="" loading="lazy">
+        <?php if ($logo): ?><img class="escudo" src="<?= e(temporadaEscudo($logo, 52)) ?>" alt="" loading="lazy" decoding="async" width="52" height="52">
         <?php else: ?><span class="es" style="background:<?= e($c) ?>"><?= e(mb_strtoupper(mb_substr($nome, 0, 2))) ?></span><?php endif; ?>
         <span class="n">
           <b><?= e($nome) ?></b>
@@ -761,7 +761,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
         <?php continue; endif;
         $t = $tc[$tid]; ?>
         <div class="tv-time" id="lado<?= $lado ?>">
-          <?php if (!empty($t['logo_url'])): ?><img src="<?= e($t['logo_url']) ?>" alt="">
+          <?php if (!empty($t['logo_url'])): ?><img src="<?= e(temporadaEscudo($t["logo_url"], 56)) ?>" alt="" width="56" height="56" decoding="async">
           <?php else: ?><span class="es" style="background:<?= e($c) ?>"><?= e($t['abbr']) ?></span><?php endif; ?>
           <span class="ab"><?= e($t['abbr']) ?></span>
           <span class="pt" id="pt<?= $lado ?>">0</span>
@@ -913,9 +913,9 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
 ?>
 
   <div class="hero" style="--time:<?= e($corTime) ?>">
-    <?php if (!empty($meu['logo_url'])): ?><img class="dagua" src="<?= e($meu['logo_url']) ?>" alt=""><?php endif; ?>
+    <?php if (!empty($meu['logo_url'])): ?><img class="dagua" src="<?= e(temporadaEscudo($meu["logo_url"], 256)) ?>" alt="" loading="lazy" decoding="async"><?php endif; ?>
     <div class="hero-topo">
-      <?php if (!empty($meu['logo_url'])): ?><img class="hero-escudo" src="<?= e($meu['logo_url']) ?>" alt="">
+      <?php if (!empty($meu['logo_url'])): ?><img class="hero-escudo" src="<?= e(temporadaEscudo($meu["logo_url"], 82)) ?>" width="82" height="82" decoding="async" alt="">
       <?php else: ?><span class="hero-escudo" style="background:<?= e($corTime) ?>"><?= e($meu['abbr']) ?></span><?php endif; ?>
       <div style="flex:1;min-width:0">
         <div class="eyebrow"><?= e($est['liga']) ?> · <?= e($faseRot) ?> · GM <?= e($est['gm_nome']) ?></div>
@@ -975,14 +975,14 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
     <div class="sec"><div class="tag"><span><?= $fase === 'regular' ? 'Próximo jogo' : 'Jogo de ' . ($fase === 'playin' ? 'play-in' : 'playoffs') ?></span></div></div>
     <div class="duelo" style="--cA:<?= e($corTime) ?>44;--cB:<?= e($advCor) ?>44">
       <div class="lado">
-        <?php if (!empty($meu['logo_url'])): ?><img src="<?= e($meu['logo_url']) ?>" alt="">
+        <?php if (!empty($meu['logo_url'])): ?><img src="<?= e(temporadaEscudo($meu["logo_url"], 72)) ?>" alt="" width="72" height="72" decoding="async">
         <?php else: ?><span class="es" style="background:<?= e($corTime) ?>"><?= e($meu['abbr']) ?></span><?php endif; ?>
         <b><?= e(temporadaNome($meu)) ?></b>
         <small><?= (int) $meu['wins'] ?>–<?= (int) $meu['losses'] ?> · <?= $euEmCasa ? 'em casa' : 'fora' ?></small>
       </div>
       <span class="vs">VS</span>
       <div class="lado">
-        <?php if (!empty($prox[$pre . 'logo'])): ?><img src="<?= e($prox[$pre . 'logo']) ?>" alt="">
+        <?php if (!empty($prox[$pre . 'logo'])): ?><img src="<?= e(temporadaEscudo($prox[$pre . "logo"], 72)) ?>" alt="" width="72" height="72" decoding="async">
         <?php else: ?><span class="es" style="background:<?= e($advCor) ?>"><?= e($prox[$pre . 'abbr']) ?></span><?php endif; ?>
         <b><?= e(temporadaNome($prox, $pre)) ?></b>
         <small><?= (int) $prox[$pre . 'v'] ?>–<?= (int) $prox[$pre . 'd'] ?></small>
@@ -1010,10 +1010,24 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
       <?php if ($fase === 'regular'): ?><b>Simular temporada regular</b> resolve tudo até a tabela final.<?php endif; ?>
     </p>
   <?php elseif ($fase !== 'offseason'): ?>
-    <div class="painel">
-      <p class="dim">Sem jogo marcado pro seu time agora.</p>
-      <form method="post"><input type="hidden" name="n" value="5">
-        <button class="cta" name="acao" value="varios"><span><i class="bi bi-fast-forward-fill"></i> Avançar</span></button></form>
+    <?php /* SEU TIME ACABOU, A LIGA NÃO.
+             Os 82 jogos não terminam no mesmo dia pra todo mundo: quem
+             fecha o calendário antes fica sem adversário enquanto o resto
+             joga. Aqui o botão "Avançar" era uma armadilha — ele anda os
+             jogos DO SEU TIME, e não há mais nenhum; a pessoa clicava, nada
+             mudava, e a temporada parecia travada. Quem resolve é o mesmo
+             simulateToEnd da temporada regular: ele empurra a LIGA até a
+             pós-temporada. */ ?>
+    <div class="sec"><div class="tag"><span>Calendário cumprido</span></div></div>
+    <div class="painel" style="text-align:center">
+      <p class="dim" style="margin-top:0">
+        Seu time já jogou os <?= (int) $est['jogados'] ?> jogos. O resto da liga ainda
+        tem partidas — quando todas acabarem, começa a pós-temporada.
+      </p>
+      <form method="post">
+        <button class="cta" name="acao" value="regular">
+          <span><i class="bi bi-fast-forward-fill"></i> Encerrar a temporada regular</span></button>
+      </form>
     </div>
   <?php endif; ?>
 
@@ -1059,12 +1073,12 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
           $casaGanhou = (int) $g['home_pts'] > (int) $g['away_pts']; ?>
           <div class="serie <?= $eu ? 'eu' : '' ?>">
             <span class="t <?= $g['played'] && $casaGanhou ? 'out' : '' ?>">
-              <?php if ($g['alogo']): ?><img src="<?= e($g['alogo']) ?>" alt=""><?php else: ?><span class="es" style="background:<?= e($cor($g['acor'])) ?>"><?= e($g['aa']) ?></span><?php endif; ?>
+              <?php if ($g['alogo']): ?><img src="<?= e(temporadaEscudo($g["alogo"], 26)) ?>" alt="" loading="lazy" decoding="async"><?php else: ?><span class="es" style="background:<?= e($cor($g['acor'])) ?>"><?= e($g['aa']) ?></span><?php endif; ?>
               <?= e(trim($g['ac'] . ' ' . $g['an'])) ?></span>
             <span class="w"><?= $g['played'] ? (int) $g['away_pts'] . '–' . (int) $g['home_pts'] : 'a jogar' ?></span>
             <span class="t <?= $g['played'] && !$casaGanhou ? 'out' : '' ?>" style="justify-content:flex-end">
               <?= e(trim($g['hc'] . ' ' . $g['hn'])) ?>
-              <?php if ($g['hlogo']): ?><img src="<?= e($g['hlogo']) ?>" alt=""><?php else: ?><span class="es" style="background:<?= e($cor($g['hcor'])) ?>"><?= e($g['ha']) ?></span><?php endif; ?>
+              <?php if ($g['hlogo']): ?><img src="<?= e(temporadaEscudo($g["hlogo"], 26)) ?>" alt="" loading="lazy" decoding="async"><?php else: ?><span class="es" style="background:<?= e($cor($g['hcor'])) ?>"><?= e($g['ha']) ?></span><?php endif; ?>
             </span>
           </div>
         <?php endforeach; if (!$piPorConf[$cf]): ?><p class="dim" style="font-size:12px">—</p><?php endif; ?>
@@ -1099,7 +1113,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
       <div class="eyebrow"><i class="bi bi-trophy-fill"></i> Final da FBA · melhor de 7</div>
       <div class="confronto">
         <div class="lado <?= $vL ? 'out' : '' ?>">
-          <?php if ($f['hlogo']): ?><img src="<?= e($f['hlogo']) ?>" alt=""><?php else: ?><span class="es" style="background:<?= e($cor($f['hcor'])) ?>"><?= e($f['ha']) ?></span><?php endif; ?>
+          <?php if ($f['hlogo']): ?><img src="<?= e(temporadaEscudo($f["hlogo"], 64)) ?>" alt="" decoding="async"><?php else: ?><span class="es" style="background:<?= e($cor($f['hcor'])) ?>"><?= e($f['ha']) ?></span><?php endif; ?>
           <b><?= e(trim($f['hc'] . ' ' . $f['hn'])) ?></b>
         </div>
         <div class="placar-final">
@@ -1108,7 +1122,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
           <span class="<?= $vL ? 'ganha' : '' ?>"><?= (int) $f['low_wins'] ?></span>
         </div>
         <div class="lado <?= $vH ? 'out' : '' ?>">
-          <?php if ($f['alogo']): ?><img src="<?= e($f['alogo']) ?>" alt=""><?php else: ?><span class="es" style="background:<?= e($cor($f['acor'])) ?>"><?= e($f['aa']) ?></span><?php endif; ?>
+          <?php if ($f['alogo']): ?><img src="<?= e(temporadaEscudo($f["alogo"], 64)) ?>" alt="" decoding="async"><?php else: ?><span class="es" style="background:<?= e($cor($f['acor'])) ?>"><?= e($f['aa']) ?></span><?php endif; ?>
           <b><?= e(trim($f['ac'] . ' ' . $f['an'])) ?></b>
         </div>
       </div>
@@ -1138,7 +1152,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
           ?>
             <tr class="<?= $meuT ? 'eu' : '' ?><?= $pos === 10 ? ' corte' : '' ?>">
               <td><span class="seed <?= $zona ?>"><?= $pos ?></span>
-                <?php if (!empty($t['logo_url'])): ?><img class="mini" src="<?= e($t['logo_url']) ?>" alt="" loading="lazy">
+                <?php if (!empty($t['logo_url'])): ?><img class="mini" src="<?= e(temporadaEscudo($t["logo_url"], 24)) ?>" alt="" loading="lazy" decoding="async" width="23" height="23">
                 <?php else: ?><span class="mini" style="background:<?= e($cor($t['primary_color'])) ?>"><?= e(mb_substr($t['abbr'], 0, 2)) ?></span><?php endif; ?>
                 <?= e(temporadaNome($t)) ?></td>
               <td class="num2"><?= (int) $t['wins'] ?></td>
@@ -1174,7 +1188,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
         <?php if (!empty($race[$k])): foreach (array_slice($race[$k], 0, 3) as $i2 => $p):
           $lg = $logos[$p['abbr']] ?? null; ?>
           <div class="l"><span class="p"><?= $i2 + 1 ?></span>
-            <?php if (!empty($lg['logo'])): ?><img class="mini" src="<?= e($lg['logo']) ?>" alt="<?= e($p['abbr']) ?>" title="<?= e($p['abbr']) ?>" loading="lazy" style="margin:0">
+            <?php if (!empty($lg['logo'])): ?><img class="mini" src="<?= e(temporadaEscudo($lg["logo"], 24)) ?>" alt="<?= e($p['abbr']) ?>" title="<?= e($p['abbr']) ?>" loading="lazy" style="margin:0">
             <?php else: ?><span class="mini" style="margin:0;background:<?= e($cor($lg['cor'] ?? '')) ?>"><?= e(mb_substr($p['abbr'], 0, 2)) ?></span><?php endif; ?>
             <span class="col">
               <span class="nm"><?= e($p['name']) ?></span>
@@ -1239,7 +1253,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
       <div class="modal-corpo">
         <div class="meu-fim <?= $resumo['eu_campeao'] ? 'campeao' : '' ?>">
           <?php if (!empty($resumo['meu']['logo_url'])): ?>
-            <img src="<?= e($resumo['meu']['logo_url']) ?>" alt="">
+            <img src="<?= e(temporadaEscudo($resumo["meu"]["logo_url"], 46)) ?>" alt="" decoding="async">
           <?php else: ?>
             <span class="es" style="background:<?= e($corTime) ?>"><?= e($resumo['meu']['abbr']) ?></span>
           <?php endif; ?>
@@ -1255,7 +1269,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
         <?php foreach ($resumo['premios'] as $p): ?>
           <div class="premio">
             <span class="pr"><?= e($p['premio']) ?></span>
-            <?php if (!empty($p['logo'])): ?><img class="mini" src="<?= e($p['logo']) ?>" alt="<?= e($p['time']) ?>" loading="lazy" style="margin:2px 0 0">
+            <?php if (!empty($p['logo'])): ?><img class="mini" src="<?= e(temporadaEscudo($p["logo"], 24)) ?>" alt="<?= e($p['time']) ?>" loading="lazy" style="margin:2px 0 0">
             <?php else: ?><span class="mini" style="margin:2px 0 0;background:<?= e($cor($p['cor'] ?? '')) ?>"><?= e(mb_substr($p['time'], 0, 2)) ?></span><?php endif; ?>
             <span class="pn"><b><?= e($p['nome']) ?></b> <small><?= e($p['time']) ?></small><br>
               <small class="dim"><?= e($p['linha']) ?></small></span>

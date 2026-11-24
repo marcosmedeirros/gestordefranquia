@@ -452,6 +452,33 @@ function temporadaLogos(): array
     return $cache;
 }
 
+/**
+ * O ENDEREÇO DA MINIATURA do escudo, no tamanho que a tela vai desenhar.
+ *
+ * Os escudos são as fotos que os GMs subiram, do jeito que subiram — há
+ * arquivos de 7,7 MB, e a tela os desenha em 23 a 82 pixels. Passar por
+ * games/escudo.php troca isso por um WebP de poucos kilobytes, gerado uma
+ * vez e cacheado.
+ *
+ * Escudo de fora (a ROOKIE usa o cdn da NBA) passa direto: redimensionar
+ * imagem de terceiro no nosso servidor seria baixar o que mandarem, e o
+ * cdn deles já entrega arquivo pequeno.
+ *
+ * @param int $lado o tamanho em que a tela desenha, em pixels de CSS
+ */
+function temporadaEscudo(?string $url, int $lado = 96): string
+{
+    $url = trim((string) $url);
+    if ($url === '') return '';
+
+    // Qualquer coisa que não seja um arquivo nosso de /img/teams fica como está.
+    if (!preg_match('~^/img/teams/([A-Za-z0-9._-]+)$~', $url, $m)) return $url;
+
+    // 2x pra telas retina: um escudo de 46px vira uma imagem de 92.
+    $px = max(24, min(256, $lado * 2));
+    return '/games/escudo.php?f=' . rawurlencode($m[1]) . '&s=' . $px;
+}
+
 /** Nome cheio de um time, sem o espaço sobrando de quem não tem cidade. */
 function temporadaNome(?array $t, string $prefixo = ''): string
 {
