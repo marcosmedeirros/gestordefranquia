@@ -270,8 +270,8 @@ img{-webkit-user-drag:none}
 /* filhos em bloco de propósito: .n é <span> (cabe no <label>) e span é
    inline — altura de filho inline é ignorada e a barra sumia da tela. */
 .timecard .n b{display:block;font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:700;
-     font-size:17.5px;letter-spacing:.5px;text-transform:uppercase;line-height:1.05;
-     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+     font-size:17px;letter-spacing:.4px;text-transform:uppercase;line-height:1.02;
+     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .timecard .n small{display:block;color:var(--txt3);font-size:11px;font-weight:600;margin-top:3px}
 .barra{display:block;height:4px;border-radius:99px;background:#04060c;overflow:hidden;margin:7px 0 0}
 .barra i{display:block;height:100%;background:var(--c);box-shadow:0 0 8px var(--c)}
