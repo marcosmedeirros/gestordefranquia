@@ -247,14 +247,25 @@ class League
             $quantos[$f] = ($quantos[$f] ?? 0) + 1;
         }
 
+        /* O SALTO É PROPORCIONAL, não absoluto — e isso muda quem ganha.
+           Medindo em pontos corridos, o prêmio ia pro craque: o melhor
+           jogador da liga tem a maior produção e, por tabela, a maior
+           distância pra média da faixa dele. Numa temporada de teste o mesmo
+           Rick Barry levou MVP e MIP, o que não quer dizer nada.
+           Em porcentagem a pergunta vira a certa: quem rende MAIS ACIMA do
+           que se esperava dele? Um reserva de 12 que faz 18 (+50%) passa na
+           frente de um astro de 24 que faz 31 (+29%). */
         $saida = [];
         foreach ($linhas as $l) {
             $f = $faixa((int) $l['ovr']);
             if (($quantos[$f] ?? 0) < 3) continue;
             $esperado = $soma[$f] / $quantos[$f];
+            if ($esperado <= 0.5) continue;              // faixa sem produção não serve de régua
+            $salto = (float) $l['score'] - $esperado;
+            if ($salto <= 0) continue;                   // não evoluiu
             $l['esperado'] = round($esperado, 2);
-            $l['score'] = round((float) $l['score'] - $esperado, 2);  // o salto
-            if ($l['score'] <= 0) continue;                            // não evoluiu
+            $l['salto']    = round($salto, 2);
+            $l['score']    = round($salto / $esperado * 100, 1);   // o salto, em %
             $saida[] = $l;
         }
 

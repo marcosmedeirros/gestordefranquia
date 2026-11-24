@@ -386,7 +386,7 @@ function temporadaResumo(int $gmId): ?array
             'linha'  => $k === 'dpoy'
                 ? number_format((float) $p['bpg'], 1) . ' tocos · ' . number_format((float) $p['spg'], 1) . ' roubos'
                 : ($k === 'mip'
-                    ? '+' . number_format((float) $p['score'], 1) . ' acima do que o OVR previa'
+                    ? '+' . number_format((float) $p['score'], 0) . '% acima do que o OVR previa'
                     : number_format((float) ($p['ppg'] ?? 0), 1) . ' pts · '
                       . number_format((float) ($p['rpg'] ?? 0), 1) . ' reb · '
                       . number_format((float) ($p['apg'] ?? 0), 1) . ' ast'),

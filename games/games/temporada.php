@@ -805,7 +805,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
       // Os apelidos que a liga usa, não os nomes por extenso.
       foreach ([
         'mvp'   => ['MVP',  $pra],
-        'mip'   => ['MIP',  fn($p) => '+' . number_format((float) $p['score'], 1) . ' s/ o OVR'],
+        'mip'   => ['MIP',  fn($p) => '+' . number_format((float) $p['score'], 0) . '% s/ o OVR'],
         'sexto' => ['6H',   $pra],
         'dpoy'  => ['DPOY', fn($p) => number_format((float) $p['bpg'], 1) . ' toc · ' . number_format((float) $p['spg'], 1) . ' rb'],
         'roy'   => ['ROY',  $pra],
