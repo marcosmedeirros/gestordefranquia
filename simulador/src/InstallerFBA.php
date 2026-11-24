@@ -82,12 +82,13 @@ class InstallerFBA
         $idPorFba = [];
         $simIds = [];
         foreach ($times as $i => $t) {
-            $abbr = self::abreviar((string)$t['city'], (string)$t['name'], $usadas);
+            [$cidade, $nome] = self::cidadeENome($t);
+            $abbr = self::abreviar($cidade, $nome, $usadas);
             [$c1, $c2] = self::cores($t, $i);
             $insTeam->execute([
                 $abbr,
-                trim((string)$t['city']),
-                trim((string)$t['name']),
+                $cidade,
+                $nome,
                 // O motor pensa em E/W; a FBA fala LESTE/OESTE.
                 strtoupper((string)$t['conference']) === 'LESTE' ? 'E' : 'W',
                 // Só a ELITE tem divisões de verdade. Sem elas, a conferência
@@ -335,6 +336,33 @@ class InstallerFBA
             $out[$k] = $v;
         }
         return $out;
+    }
+
+    /**
+     * CIDADE E APELIDO, mesmo quando o site só tem um dos dois.
+     *
+     * Dois times da liga estão com a cidade em branco e o nome inteiro num
+     * campo só ("Villanova Valleys", "Boston Beans"). O jogo mostra cidade e
+     * apelido separados em todo lugar, e a sigla sai da cidade — sem tratar
+     * isto, o Villanova aparecia como " Villanova Valleys", com o espaço
+     * sobrando na frente, e com a sigla XXX, que é o fundo do poço do
+     * gerador. A primeira palavra é a cidade; o resto é o apelido.
+     */
+    private static function cidadeENome(array $t): array
+    {
+        $cidade = trim((string)($t['city'] ?? ''));
+        $nome   = trim((string)($t['name'] ?? ''));
+
+        if ($cidade === '' && $nome !== '' && str_contains($nome, ' ')) {
+            [$cidade, $nome] = explode(' ', $nome, 2);
+            $cidade = trim($cidade);
+            $nome   = trim($nome);
+        }
+        // Nome de uma palavra só e sem cidade: ele é as duas coisas.
+        if ($cidade === '') $cidade = $nome;
+        if ($nome === '')   $nome = $cidade;
+
+        return [$cidade, $nome];
     }
 
     /** PG/SG/SF/PF/C — quem vier diferente vira ala, que é o que menos erra. */
