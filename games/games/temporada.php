@@ -150,8 +150,12 @@ a{color:inherit;text-decoration:none}
           display:grid;place-items:center;font-weight:900;font-size:13px;color:#fff}
 .timecard .n{flex:1;min-width:0}
 .timecard .n b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.timecard .n small{color:var(--txt3);font-size:11.5px}
-.barra{height:5px;border-radius:99px;background:#0b0f18;overflow:hidden;margin-top:5px}
+/* OS FILHOS SÃO BLOCO DE PROPÓSITO. O .n é um <span> (precisa ser, pra caber
+   dentro do <label>), e span é inline: altura e largura de filho inline são
+   ignoradas. Sem isto a barra de força nascia com 0 de largura e sumia da
+   tela — só o nome e as duas linhas de texto apareciam. */
+.timecard .n small{display:block;color:var(--txt3);font-size:11.5px}
+.barra{display:block;height:5px;border-radius:99px;background:#0b0f18;overflow:hidden;margin:5px 0}
 .barra i{display:block;height:100%}
 .ligas{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
 .ligacard{display:block;background:var(--card2);border:1px solid var(--linha);border-radius:13px;padding:14px}
