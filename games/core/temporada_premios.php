@@ -1,6 +1,6 @@
 <?php
-require_once __DIR__ . '/Database.php';
-require_once __DIR__ . '/InstallerFBA.php';
+require_once __DIR__ . '/temporada_motor.php';
+require_once __DIR__ . '/temporada_liga.php';
 
 /**
  * AS MOEDAS DA TEMPORADA, pagas por etapa e escaladas pela força do time.
@@ -20,7 +20,7 @@ require_once __DIR__ . '/InstallerFBA.php';
  * aconteceu, ela é paga na próxima vez que a pessoa olhar a tela — e paga uma
  * vez só, porque o que já saiu fica anotado em `fba_pagos`.
  */
-class FbaPremios
+class TemporadaPremios
 {
     /** etapa => [moedas na força máxima, rótulo, rodada vencida] */
     public const ETAPAS = [
@@ -191,7 +191,7 @@ class FbaPremios
     {
         if ($moedas <= 0) return false;
         try {
-            $pdo = InstallerFBA::fbaConn();
+            $pdo = TemporadaLiga::fbaConn();
             $pdo->prepare(
                 "INSERT IGNORE INTO games_usuarios (id, nome, email, league)
                  SELECT id, name, email, COALESCE(league, 'ROOKIE') FROM users WHERE id = ?"

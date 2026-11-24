@@ -685,6 +685,20 @@ $jogosLivres = [
        abriu pra liga inteira. */
     ['href' => '/games/games/geo.php', 'nome' => 'FBA Geo',
      'sub'  => 'Onde no mundo você está?', 'icone' => 'bi-globe-americas', 'cor' => '#38bdf8'],
+    /* MINHA TEMPORADA (24/11/2026). Você pega um time da FBA — o elenco como
+       está no site hoje — e simula os 82 jogos dele, um a um, com box score;
+       os outros times só aparecem na tabela.
+
+       É o único jogo daqui que paga MAIS por jogar com time pior: a força do
+       elenco é medida na hora da escolha e congelada, e cada etapa de playoff
+       vale 1x pro melhor elenco da liga e 2,5x pro pior. Sem isso todo mundo
+       pegaria o favorito e o jogo seria uma formalidade de dez minutos.
+
+       O motor é o do /simulador (simulação por posses, playoffs, prêmios) —
+       o jogo é daqui: tela própria, save próprio, e não aparece no "Meus
+       saves" de lá. @see games/core/temporada.php */
+    ['href' => '/games/games/temporada.php', 'nome' => 'Minha Temporada',
+     'sub'  => 'Leve um time da FBA ao título', 'icone' => 'bi-calendar3', 'cor' => '#f97316'],
     ['key' => 'buildplayer','nome' => 'Build-A-Player','sub' => 'Monte a lenda perfeita','icone' => 'bi-tools',      'cor' => '#f97316'],
     ['key' => 'dreamteam', 'nome' => 'Starting5x5', 'sub' => 'Monte o time e dispute','icone' => 'bi-people-fill',  'cor' => '#6366f1'],
     ['key' => 'flappy',    'nome' => 'Flappy Bird', 'sub' => 'Desvie dos canos',  'icone' => 'bi-airplane',       'cor' => '#f43f5e'],

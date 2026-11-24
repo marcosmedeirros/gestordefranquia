@@ -310,30 +310,6 @@ function page_head(string $title, array $o = []): void
     echo '</div>';
     if (!empty($o['actions'])) echo '<div class="ph-actions">' . $o['actions'] . '</div>';
     echo '</header>';
-    fba_premios_flash();
-}
-
-/**
- * O aviso de moeda paga, logo abaixo do título da página.
- *
- * Mora aqui porque toda tela chama page_head(), e a etapa pode ser vencida em
- * qualquer caminho — avançar o dia, simular a rodada, simular até o fim. Em
- * vez de lembrar de mostrar o aviso em cada uma dessas telas, ele aparece na
- * primeira que carregar depois do pagamento. @see FbaPremios::reconciliar()
- */
-function fba_premios_flash(): void
-{
-    if (empty($GLOBALS['FBA_PREMIOS_NOVOS'])) return;
-    $premios = $GLOBALS['FBA_PREMIOS_NOVOS'];
-    $GLOBALS['FBA_PREMIOS_NOVOS'] = [];   // uma vez só por carregamento
-
-    $total = array_sum(array_column($premios, 'moedas'));
-    echo '<section class="panel" style="border-color:#eab308">';
-    echo '<div class="panel-head"><h2>' . bi('coin') . 'Você ganhou ' . (int) $total . ' moedas</h2></div><ul>';
-    foreach ($premios as $p) {
-        echo '<li><strong>' . e($p['rotulo']) . '</strong> — +' . (int) $p['moedas'] . '</li>';
-    }
-    echo '</ul><p class="dim">As moedas já estão na sua conta do FBA Games.</p></section>';
 }
 
 /** Cabeçalho de painel. $o: icon, meta (texto), more ([rótulo, href]), right (html). */
@@ -453,14 +429,7 @@ function sim_nav(): array
     $phase = League::phase();
     $gm = League::gmTeam();
     $unread = $gm ? League::inboxUnread() : 0;
-
-    /* MINHA TEMPORADA NÃO TEM MERCADO.
-       Trocas, agentes livres, folha, loteria e draft são o jogo de dinastia da
-       NBA. Aqui o elenco é o que a FBA tem hoje e o jogo é levá-lo até o
-       título — deixar essas telas no menu seria oferecer uma gestão que o modo
-       não tem, e cada uma delas assume uma temporada seguinte que não existe. */
-    $ehFba = Database::meta('modo') === 'fba';
-    $capC = ($gm && !$ehFba) ? Cap::gmCompliance() : null;
+    $capC = $gm ? Cap::gmCompliance() : null;
 
     $inicio = ['home' => 'Central', 'inbox' => 'Caixa de entrada'];
     if ($phase === 'preseason') $inicio['preseason'] = 'Pré-temporada';
@@ -479,7 +448,7 @@ function sim_nav(): array
     if ($phase === 'offseason') $liga['awards'] = 'Prêmios';
     $liga += ['leaders' => 'Líderes', 'power' => 'Power ranking', 'teams' => 'Times', 'history' => 'História', 'search' => 'Busca'];
 
-    $nav = [
+    return [
         'inicio'  => ['label' => 'Início',  'icon' => 'house-door-fill',  'items' => $inicio,  'badge' => $unread],
         'elenco'  => ['label' => 'Elenco',  'icon' => 'people-fill',      'items' => $elenco],
         'mercado' => ['label' => 'Mercado', 'icon' => 'arrow-left-right', 'items' => $mercado,
@@ -487,17 +456,6 @@ function sim_nav(): array
         'liga'    => ['label' => 'Liga',    'icon' => 'trophy-fill',      'items' => $liga],
         'mais'    => ['label' => 'Mais',    'icon' => 'grid-fill',        'items' => ['saves' => 'Meus saves', 'gmselect' => 'Franquias']],
     ];
-
-    if ($ehFba) {
-        unset($nav['mercado']);
-        // "Franquias" troca a franquia no meio da dinastia — no modo FBA o
-        // time é a escolha que define a partida inteira e o prêmio que ela
-        // paga. Trocar de time no meio seria trocar de aposta depois do giro.
-        $nav['mais']['items'] = ['saves' => 'Meus saves'];
-        $nav['elenco']['items'] = ['lineup' => 'Elenco'];
-    }
-
-    return $nav;
 }
 
 function sim_section_of(string $page, array $nav): string

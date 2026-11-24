@@ -298,54 +298,11 @@ render_header('Central');
     </section>
     <?php endif; ?>
 
-    <?php /* ── O QUE ESTÁ EM JOGO, no modo FBA ────────────────────────
-             A escolha do time já aconteceu e não dá pra desfazer, então o
-             valor de cada etapa precisa estar visível o tempo todo: é o que
-             transforma "perdi na primeira rodada" em "deixei 1.250 na mesa". */
-       require_once dirname(__DIR__) . '/FbaPremios.php';
-       if (FbaPremios::ativo()):
-         $conq = FbaPremios::conquistadas();
-         $pagas = FbaPremios::pagas();
-    ?>
-    <section class="panel">
-      <?= panel_head('Moedas da temporada', [
-            'icon' => 'coin',
-            'meta' => FbaPremios::multiplicador() . 'x — ' . (int) Database::meta('fba_rank')
-                      . 'º elenco de ' . (int) Database::meta('fba_times'),
-          ]) ?>
-      <table class="tbl">
-        <tbody>
-        <?php foreach (FbaPremios::tabela() as $k => $i):
-          $feito = !empty($conq[$i['rodada']]);
-          $pago  = in_array($k, $pagas, true);
-        ?>
-          <tr<?= $feito ? '' : ' class="dim"' ?>>
-            <td><?= $feito ? bi('check-circle-fill') : bi('circle') ?> <?= e($i['rotulo']) ?></td>
-            <td style="text-align:right"><b><?= number_format($i['moedas'], 0, ',', '.') ?></b>
-              <?= $pago ? '<small class="dim"> pago</small>' : '' ?></td>
-          </tr>
-        <?php endforeach; ?>
-        </tbody>
-      </table>
-      <p class="dim">
-        Quanto mais fraco o elenco, mais cada etapa paga. O seu está em
-        <?= (int) Database::meta('fba_forca') ?>/100 de força, então tudo aqui vale
-        <?= FbaPremios::multiplicador() ?>x o valor base.
-      </p>
-    </section>
-    <?php endif; ?>
-
     <?php if ($race): ?>
     <section class="panel">
       <?= panel_head('Corrida pelos prêmios', ['icon' => 'award-fill']) ?>
       <div class="race">
-        <?php /* O MIP mostra o SALTO, não a média: o número dele é quanto
-                 está rendendo acima do que o OVR previa, e é isso que explica
-                 por que um nome de 12 pontos aparece na frente de um de 20.
-                 @see League::mipRace() */ ?>
         <?php foreach (['mvp' => ['MVP', fn($p) => number_format((float) $p['ppg'], 1) . ' pts'],
-                        'mip' => ['Evolução', fn($p) => '+' . number_format((float) $p['score'], 1) . ' acima do OVR'],
-                        'sexto' => ['6º Homem', fn($p) => number_format((float) $p['ppg'], 1) . ' pts'],
                         'dpoy' => ['Defensor', fn($p) => number_format((float) $p['bpg'], 1) . ' toc · ' . number_format((float) $p['spg'], 1) . ' rb'],
                         'roy' => ['Novato', fn($p) => number_format((float) $p['ppg'], 1) . ' pts']] as $k => [$label, $val]): ?>
           <div class="race-col">

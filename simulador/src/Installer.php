@@ -225,7 +225,8 @@ class Installer
      */
     private const TARGET_DAYS = 82;
 
-    /** O calendário do método do círculo. Público porque o InstallerFBA usa o mesmo. */
+    /** O calendário do método do círculo. Público porque o Minha Temporada (jogo
+     *  do /games) monta o calendário da FBA com ele. @see games/core/temporada_liga.php */
     public static function buildSchedule(array $teamIds): array
     {
         $target = self::TARGET_DAYS;

@@ -1,6 +1,6 @@
 <?php
-require_once __DIR__ . '/Database.php';
-require_once __DIR__ . '/Installer.php';
+require_once __DIR__ . '/temporada_motor.php';
+
 
 /**
  * A FBA DE VERDADE DENTRO DO MOTOR.
@@ -24,7 +24,7 @@ require_once __DIR__ . '/Installer.php';
  * Quem não tem ficha preenchida (uns 3% do elenco) não fica zerado: cai no
  * próprio OVR, que é o número que a liga já usa pra ele.
  */
-class InstallerFBA
+class TemporadaLiga
 {
     /** A régua do site. @see backend/sistema_proficiencia.php */
     private const LETRA = [
@@ -237,7 +237,7 @@ class InstallerFBA
      * Conexão ao banco do site.
      *
      * Nasceu só pra ler os elencos, e é quase só isso que faz. A exceção é o
-     * pagamento das moedas (@see FbaPremios), que precisa escrever em
+     * pagamento das moedas (@see TemporadaPremios), que precisa escrever em
      * `games_usuarios` — a carteira do Games mora lá, não aqui no save.
      */
     public static function fbaConn(): PDO
