@@ -22,13 +22,18 @@ require_once __DIR__ . '/temporada_liga.php';
  */
 class TemporadaPremios
 {
-    /** etapa => [moedas na força máxima, rótulo, rodada vencida] */
+    /** etapa => [moedas na força máxima, rótulo, rodada vencida]
+     *
+     * Régua apertada por pedido do Marcos (24/11/2026, "acho que tá dando
+     * muita moeda"): 50 por etapa e 100 no título. A campanha perfeita do
+     * favorito vale 300; a do pior elenco da liga, com o 2,5x, vale 750 —
+     * na ordem do que os outros jogos do /games pagam numa boa sessão. */
     public const ETAPAS = [
-        'playoffs' => [150, 'Classificou aos playoffs', 0],
-        'r1'       => [250, 'Passou da primeira rodada', 1],
-        'r2'       => [350, 'Passou das semifinais de conferência', 2],
-        'conf'     => [500, 'Campeão da conferência', 3],
-        'titulo'   => [750, 'CAMPEÃO DA FBA', 4],
+        'playoffs' => [50,  'Classificou aos playoffs', 0],
+        'r1'       => [50,  'Passou da primeira rodada', 1],
+        'r2'       => [50,  'Passou das semifinais de conferência', 2],
+        'conf'     => [50,  'Campeão da conferência', 3],
+        'titulo'   => [100, 'CAMPEÃO DA FBA', 4],
     ];
 
     /** Quanto o pior elenco da liga ganha a mais que o melhor. */

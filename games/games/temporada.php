@@ -76,6 +76,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             temporadaSimularVarios((int) ($_POST['n'] ?? 5));
             header('Location: /games/games/temporada.php'); exit;
         }
+        /* SIMULAR A TEMPORADA REGULAR, e só ela. O motor para sozinho quando
+           a fase vira play-in — e a tela seguinte mostra a TABELA FINAL, não
+           o chaveamento: ver onde cada um terminou é o fecho da temporada, e
+           os playoffs só aparecem quando a pessoa mandar. */
+        if ($acao === 'regular') {
+            $guarda = 0;
+            while (League::phase() === 'regular' && $guarda++ < 3) League::simulateToEnd();
+            header('Location: /games/games/temporada.php'); exit;
+        }
+        // O clique que vira a página: da tabela final pro chaveamento.
+        if ($acao === 'abrir_playoffs') {
+            Database::setMeta('playoffs_abertos', '1');
+            header('Location: /games/games/temporada.php'); exit;
+        }
     }
     header('Location: /games/games/temporada.php'); exit;
 }
@@ -461,6 +475,53 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
 .serie .w{font-family:Oswald,sans-serif;font-size:19px;font-variant-numeric:tabular-nums;flex:none}
 .serie .w.ganha{color:var(--ok)}
 .serie .seed{margin:0}
+
+/* ── o portão do fim da temporada regular ── */
+.fim-regular{position:relative;overflow:hidden;text-align:center;border:1px solid var(--linha2);
+     border-radius:18px;padding:34px 20px 30px;margin:18px 0;
+     background:radial-gradient(560px 260px at 50% -70%,rgba(245,200,66,.22),transparent 70%),var(--card)}
+.fim-regular .eyebrow{font-size:10.5px;letter-spacing:2.6px;text-transform:uppercase;color:var(--ouro);font-weight:800}
+.fim-regular h2{margin:8px 0 6px;font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:700;
+     font-size:clamp(30px,6vw,46px);line-height:.96;text-transform:uppercase;letter-spacing:.5px}
+.fim-regular h2 em{font-style:italic;color:transparent;-webkit-text-stroke:1.4px var(--ouro)}
+.fim-regular form{margin-top:16px}
+
+/* ── chaveamento por conferência ── */
+.rodada-rot{margin:20px 0 10px}
+.rodada-rot span{display:inline-block;transform:skewX(-8deg);background:var(--card2);
+     border:1px solid var(--linha2);border-radius:3px;padding:5px 14px;font-size:11px;
+     letter-spacing:1.7px;text-transform:uppercase;color:var(--txt2);font-weight:800}
+.rodada-rot span{font-family:Inter,sans-serif}
+.confs{gap:14px;margin-bottom:4px}
+.conf-rot{margin-bottom:8px}
+.conf-rot span{display:inline-block;transform:skewX(-8deg);border-radius:3px;padding:4px 13px;
+     font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:700;font-size:14.5px;
+     letter-spacing:1.6px;text-transform:uppercase}
+.conf-rot.leste span{background:#3b82f61f;border:1px solid #3b82f648;color:#8cb6ff}
+.conf-rot.oeste span{background:#f59e0b1c;border:1px solid #f59e0b45;color:#ffc766}
+
+.final-fba{position:relative;overflow:hidden;border:1px solid #f5c84252;border-radius:18px;
+     padding:22px 16px;margin-top:18px;text-align:center;
+     background:radial-gradient(380px 200px at 18% -30%,var(--cA),transparent 70%),
+                radial-gradient(380px 200px at 82% -30%,var(--cB),transparent 70%),
+                radial-gradient(500px 240px at 50% -60%,rgba(245,200,66,.18),transparent 72%),var(--card)}
+.final-fba.eu{box-shadow:0 0 44px -14px rgba(245,200,66,.55)}
+.final-fba .eyebrow{font-size:10.5px;letter-spacing:2.4px;text-transform:uppercase;color:var(--ouro);font-weight:800}
+.final-fba .confronto{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:14px}
+.final-fba .lado{flex:1;max-width:220px;min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px}
+.final-fba .lado.out{opacity:.55}
+.final-fba img,.final-fba .es{width:64px;height:64px;border-radius:15px;object-fit:cover;
+     display:grid;place-items:center;font-weight:900;font-size:15px;background:#0007;
+     filter:drop-shadow(0 8px 20px rgba(0,0,0,.6))}
+.final-fba b{font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:700;font-size:16.5px;
+     letter-spacing:.5px;text-transform:uppercase;line-height:1.15}
+.placar-final{flex:none;display:flex;align-items:center;gap:9px;font-family:Oswald,sans-serif;
+     font-size:42px;font-weight:600;font-variant-numeric:tabular-nums}
+.placar-final em{font-style:normal;font-size:19px;color:var(--txt3)}
+.placar-final .ganha{color:var(--ouro)}
+
+/* ── a imagem de compartilhar do resumo ── */
+#cardTemporada{width:100%;height:auto;border-radius:12px;border:1px solid var(--linha2);display:block}
 
 /* ── avisos ── */
 .aviso{border-radius:12px;padding:13px 15px;margin-bottom:14px;font-size:13.4px;line-height:1.6}
@@ -885,13 +946,33 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
     <?php endif; ?>
   </div>
 
-  <?php if ($fase !== 'offseason'): $prox = temporadaProximoAdversario($est['gm_id']); ?>
-  <div class="sec"><div class="tag"><span>Próximo jogo</span></div></div>
-  <?php if ($prox):
+  <?php
+  /* ── O RITMO DA VIRADA DE FASE ────────────────────────────────────────
+     A temporada regular acaba e a tela NÃO pula direto pro chaveamento: ela
+     mostra a tabela final — ver onde cada um terminou é o fecho da história
+     — e espera o clique em "Ir pros playoffs". Só então o chaveamento toma
+     o lugar da tabela. O clique fica gravado no save (playoffs_abertos);
+     offseason conta como aberto, senão um save antigo ficava preso no
+     portão sem ter mais jogo nenhum pra destrancar. */
+  $posTemporada    = in_array($fase, ['playin', 'playoffs', 'offseason'], true);
+  $playoffsAbertos = $fase === 'offseason' || Database::meta('playoffs_abertos') === '1';
+  $prox = $fase !== 'offseason' ? temporadaProximoAdversario($est['gm_id']) : null;
+  ?>
+
+  <?php if ($posTemporada && !$playoffsAbertos): /* ── O PORTÃO ── */ ?>
+    <div class="fim-regular">
+      <div class="eyebrow">82 jogos depois</div>
+      <h2>Temporada regular<br><em>encerrada</em></h2>
+      <p class="dim">A tabela final está aí embaixo. Quando quiser, a pós-temporada começa.</p>
+      <form method="post"><button class="cta" name="acao" value="abrir_playoffs">
+        <span><i class="bi bi-trophy-fill"></i> Ir pros playoffs</span></button></form>
+    </div>
+  <?php elseif ($fase !== 'offseason' && $prox):
     $euEmCasa = (int) $prox['home_id'] === $est['gm_id'];
     $pre = $euEmCasa ? 'away_' : 'home_';
     $advCor = $cor($prox[$pre . 'cor']);
   ?>
+    <div class="sec"><div class="tag"><span><?= $fase === 'regular' ? 'Próximo jogo' : 'Jogo de ' . ($fase === 'playin' ? 'play-in' : 'playoffs') ?></span></div></div>
     <div class="duelo" style="--cA:<?= e($corTime) ?>44;--cB:<?= e($advCor) ?>44">
       <div class="lado">
         <?php if (!empty($meu['logo_url'])): ?><img src="<?= e($meu['logo_url']) ?>" alt="">
@@ -919,74 +1000,123 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
     <div class="linha-btns" style="justify-content:center;margin-top:11px">
       <form method="post"><input type="hidden" name="n" value="5">
         <button class="btn btn-fraco" name="acao" value="varios">Pular 5 jogos</button></form>
-      <form method="post"><input type="hidden" name="n" value="82">
-        <button class="btn btn-fraco" name="acao" value="varios">Pular até o fim</button></form>
+      <?php if ($fase === 'regular'): ?>
+      <form method="post" onsubmit="return confirm('Simular todos os jogos que faltam da temporada regular? Você vai direto pra tabela final.')">
+        <button class="btn btn-fraco" name="acao" value="regular">Simular temporada regular</button></form>
+      <?php endif; ?>
     </div>
     <p class="dim" style="text-align:center;margin:10px 0 0;font-size:12px">
-      <b>Simular</b> vai direto pro box score. <b>Pular</b> resolve vários jogos de uma vez, sem parar em nenhum.
+      <b>Simular</b> vai direto pro box score do jogo.
+      <?php if ($fase === 'regular'): ?><b>Simular temporada regular</b> resolve tudo até a tabela final.<?php endif; ?>
     </p>
-  <?php else: ?>
+  <?php elseif ($fase !== 'offseason'): ?>
     <div class="painel">
       <p class="dim">Sem jogo marcado pro seu time agora.</p>
-      <form method="post"><input type="hidden" name="n" value="82">
+      <form method="post"><input type="hidden" name="n" value="5">
         <button class="cta" name="acao" value="varios"><span><i class="bi bi-fast-forward-fill"></i> Avançar</span></button></form>
     </div>
-  <?php endif; endif; ?>
+  <?php endif; ?>
 
-  <?php /* ── CHAVEAMENTO NO LUGAR DA TABELA ───────────────────────────
-           Quando a temporada regular acaba, a classificação deixa de ser a
-           pergunta: o que importa é quem joga contra quem e quantas faltam.
-           A tabela some e o chaveamento ocupa o lugar dela. */
-  $chave = in_array($fase, ['playin', 'playoffs', 'offseason'], true)
-         ? temporadaChaveamento($est['gm_id']) : null;
+  <?php /* ── CHAVEAMENTO NO LUGAR DA TABELA, POR CONFERÊNCIA ──────────
+           Quando os playoffs abrem, a classificação deixa de ser a pergunta.
+           E o chaveamento se lê como a liga pensa: Leste de um lado, Oeste
+           do outro, e a final no meio. */
+  $chave = ($posTemporada && $playoffsAbertos) ? temporadaChaveamento($est['gm_id']) : null;
+
+  /* Um jogo/série vira HTML num helper só — o chaveamento inteiro é a mesma
+     linha repetida, e duplicá-la por conferência dobraria o lugar de errar. */
+  $desenhaSerie = function (array $s) use ($cor, $est) {
+      $vH = (int) $s['winner_id'] === (int) $s['high_seed_id'];
+      $vL = (int) $s['winner_id'] === (int) $s['low_seed_id'];
+      $esc = fn($l, $c, $a) => $l ? '<img src="' . e($l) . '" alt="">'
+          : '<span class="es" style="background:' . e($cor($c)) . '">' . e($a) . '</span>';
+      echo '<div class="serie ' . ($s['eu'] ? 'eu' : '') . '">';
+      echo '<span class="t ' . ($vL ? 'out' : '') . '"><span class="seed">' . (int) $s['high_seed'] . '</span>'
+         . $esc($s['hlogo'], $s['hcor'], $s['ha']) . e(trim($s['hc'] . ' ' . $s['hn'])) . '</span>';
+      echo '<span class="w ' . ($vH ? 'ganha' : '') . '">' . (int) $s['high_wins'] . '</span>'
+         . '<span style="color:var(--txt3)">–</span>'
+         . '<span class="w ' . ($vL ? 'ganha' : '') . '">' . (int) $s['low_wins'] . '</span>';
+      echo '<span class="t ' . ($vH ? 'out' : '') . '" style="justify-content:flex-end">'
+         . e(trim($s['ac'] . ' ' . $s['an'])) . $esc($s['alogo'], $s['acor'], $s['aa'])
+         . '<span class="seed">' . (int) $s['low_seed'] . '</span></span>';
+      echo '</div>';
+  };
+
   if ($chave && ($chave['playin'] || $chave['rodadas'])): ?>
   <div class="sec"><div class="tag ouro"><span>Playoffs</span></div></div>
-  <div class="painel">
-    <?php if ($chave['playin']): ?>
-      <div class="rodada"><b><span>Play-in</span></b>
-      <?php foreach ($chave['playin'] as $g):
-        $eu = in_array($est['gm_id'], [(int) $g['home_id'], (int) $g['away_id']], true);
-        $casaGanhou = (int) $g['home_pts'] > (int) $g['away_pts']; ?>
-        <div class="serie <?= $eu ? 'eu' : '' ?>">
-          <span class="t <?= $g['played'] && $casaGanhou ? 'out' : '' ?>">
-            <?php if ($g['alogo']): ?><img src="<?= e($g['alogo']) ?>" alt=""><?php else: ?><span class="es" style="background:<?= e($cor($g['acor'])) ?>"><?= e($g['aa']) ?></span><?php endif; ?>
-            <?= e(trim($g['ac'] . ' ' . $g['an'])) ?></span>
-          <span class="w"><?= $g['played'] ? (int) $g['away_pts'] . '–' . (int) $g['home_pts'] : 'a jogar' ?></span>
-          <span class="t <?= $g['played'] && !$casaGanhou ? 'out' : '' ?>" style="justify-content:flex-end">
-            <?= e(trim($g['hc'] . ' ' . $g['hn'])) ?>
-            <?php if ($g['hlogo']): ?><img src="<?= e($g['hlogo']) ?>" alt=""><?php else: ?><span class="es" style="background:<?= e($cor($g['hcor'])) ?>"><?= e($g['ha']) ?></span><?php endif; ?>
-          </span>
-        </div>
-      <?php endforeach; ?>
-      </div>
-    <?php endif; ?>
 
-    <?php $rotR = [1 => 'Primeira rodada', 2 => 'Semifinais de conferência',
-                   3 => 'Finais de conferência', 4 => 'Final da FBA'];
-    foreach ($chave['rodadas'] as $r => $lista): ?>
-      <div class="rodada"><b><span><?= e($rotR[$r] ?? ('Rodada ' . $r)) ?></span></b>
-      <?php foreach ($lista as $s):
-        $vH = (int) $s['winner_id'] === (int) $s['high_seed_id'];
-        $vL = (int) $s['winner_id'] === (int) $s['low_seed_id']; ?>
-        <div class="serie <?= $s['eu'] ? 'eu' : '' ?>">
-          <span class="t <?= $vL ? 'out' : '' ?>">
-            <span class="seed"><?= (int) $s['high_seed'] ?></span>
-            <?php if ($s['hlogo']): ?><img src="<?= e($s['hlogo']) ?>" alt=""><?php else: ?><span class="es" style="background:<?= e($cor($s['hcor'])) ?>"><?= e($s['ha']) ?></span><?php endif; ?>
-            <?= e(trim($s['hc'] . ' ' . $s['hn'])) ?></span>
-          <span class="w <?= $vH ? 'ganha' : '' ?>"><?= (int) $s['high_wins'] ?></span>
-          <span style="color:var(--txt3)">–</span>
-          <span class="w <?= $vL ? 'ganha' : '' ?>"><?= (int) $s['low_wins'] ?></span>
-          <span class="t <?= $vH ? 'out' : '' ?>" style="justify-content:flex-end">
-            <?= e(trim($s['ac'] . ' ' . $s['an'])) ?>
-            <?php if ($s['alogo']): ?><img src="<?= e($s['alogo']) ?>" alt=""><?php else: ?><span class="es" style="background:<?= e($cor($s['acor'])) ?>"><?= e($s['aa']) ?></span><?php endif; ?>
-            <span class="seed"><?= (int) $s['low_seed'] ?></span></span>
-        </div>
-      <?php endforeach; ?>
+  <?php if ($chave['playin']):
+    $piPorConf = ['E' => [], 'W' => []];
+    foreach ($chave['playin'] as $g) $piPorConf[$g['conf'] === 'E' ? 'E' : 'W'][] = $g;
+  ?>
+    <div class="rodada-rot"><span>Play-in</span></div>
+    <div class="duas confs">
+      <?php foreach (['E' => 'Leste', 'W' => 'Oeste'] as $cf => $rotC): ?>
+      <div>
+        <div class="conf-rot <?= $cf === 'E' ? 'leste' : 'oeste' ?>"><span><?= $rotC ?></span></div>
+        <?php foreach ($piPorConf[$cf] as $g):
+          $eu = in_array($est['gm_id'], [(int) $g['home_id'], (int) $g['away_id']], true);
+          $casaGanhou = (int) $g['home_pts'] > (int) $g['away_pts']; ?>
+          <div class="serie <?= $eu ? 'eu' : '' ?>">
+            <span class="t <?= $g['played'] && $casaGanhou ? 'out' : '' ?>">
+              <?php if ($g['alogo']): ?><img src="<?= e($g['alogo']) ?>" alt=""><?php else: ?><span class="es" style="background:<?= e($cor($g['acor'])) ?>"><?= e($g['aa']) ?></span><?php endif; ?>
+              <?= e(trim($g['ac'] . ' ' . $g['an'])) ?></span>
+            <span class="w"><?= $g['played'] ? (int) $g['away_pts'] . '–' . (int) $g['home_pts'] : 'a jogar' ?></span>
+            <span class="t <?= $g['played'] && !$casaGanhou ? 'out' : '' ?>" style="justify-content:flex-end">
+              <?= e(trim($g['hc'] . ' ' . $g['hn'])) ?>
+              <?php if ($g['hlogo']): ?><img src="<?= e($g['hlogo']) ?>" alt=""><?php else: ?><span class="es" style="background:<?= e($cor($g['hcor'])) ?>"><?= e($g['ha']) ?></span><?php endif; ?>
+            </span>
+          </div>
+        <?php endforeach; if (!$piPorConf[$cf]): ?><p class="dim" style="font-size:12px">—</p><?php endif; ?>
       </div>
-    <?php endforeach; ?>
-  </div>
-  <?php else: /* temporada regular: a tabela */ ?>
-  <div class="sec"><div class="tag"><span>Classificação</span></div>
+      <?php endforeach; ?>
+    </div>
+  <?php endif; ?>
+
+  <?php $rotR = [1 => 'Primeira rodada', 2 => 'Semifinais de conferência', 3 => 'Finais de conferência'];
+  foreach ($chave['rodadas'] as $r => $lista):
+    if ($r === 4) continue;    // a final tem palco próprio, logo abaixo
+    $porConf = ['E' => [], 'W' => []];
+    foreach ($lista as $s) $porConf[strtoupper((string) $s['conf']) === 'E' ? 'E' : 'W'][] = $s;
+  ?>
+    <div class="rodada-rot"><span><?= e($rotR[$r] ?? ('Rodada ' . $r)) ?></span></div>
+    <div class="duas confs">
+      <?php foreach (['E' => 'Leste', 'W' => 'Oeste'] as $cf => $rotC): ?>
+      <div>
+        <div class="conf-rot <?= $cf === 'E' ? 'leste' : 'oeste' ?>"><span><?= $rotC ?></span></div>
+        <?php foreach ($porConf[$cf] as $s) $desenhaSerie($s);
+        if (!$porConf[$cf]): ?><p class="dim" style="font-size:12px">Aguardando a rodada anterior.</p><?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  <?php endforeach; ?>
+
+  <?php if (!empty($chave['rodadas'][4])): $f = $chave['rodadas'][4][0];
+    $vH = (int) $f['winner_id'] === (int) $f['high_seed_id'];
+    $vL = (int) $f['winner_id'] === (int) $f['low_seed_id'];
+  ?>
+    <div class="final-fba <?= $f['eu'] ? 'eu' : '' ?>" style="--cA:<?= e($cor($f['hcor'])) ?>44;--cB:<?= e($cor($f['acor'])) ?>44">
+      <div class="eyebrow"><i class="bi bi-trophy-fill"></i> Final da FBA · melhor de 7</div>
+      <div class="confronto">
+        <div class="lado <?= $vL ? 'out' : '' ?>">
+          <?php if ($f['hlogo']): ?><img src="<?= e($f['hlogo']) ?>" alt=""><?php else: ?><span class="es" style="background:<?= e($cor($f['hcor'])) ?>"><?= e($f['ha']) ?></span><?php endif; ?>
+          <b><?= e(trim($f['hc'] . ' ' . $f['hn'])) ?></b>
+        </div>
+        <div class="placar-final">
+          <span class="<?= $vH ? 'ganha' : '' ?>"><?= (int) $f['high_wins'] ?></span>
+          <em>×</em>
+          <span class="<?= $vL ? 'ganha' : '' ?>"><?= (int) $f['low_wins'] ?></span>
+        </div>
+        <div class="lado <?= $vH ? 'out' : '' ?>">
+          <?php if ($f['alogo']): ?><img src="<?= e($f['alogo']) ?>" alt=""><?php else: ?><span class="es" style="background:<?= e($cor($f['acor'])) ?>"><?= e($f['aa']) ?></span><?php endif; ?>
+          <b><?= e(trim($f['ac'] . ' ' . $f['an'])) ?></b>
+        </div>
+      </div>
+    </div>
+  <?php endif; ?>
+
+  <?php else: /* a tabela — da temporada em curso ou a FINAL, no portão */ ?>
+  <div class="sec"><div class="tag"><span><?= $posTemporada ? 'Tabela final' : 'Classificação' ?></span></div>
     <span class="sub">1–6 direto<br>7–10 play-in</span></div>
   <div class="painel">
     <div class="duas">
@@ -995,7 +1125,10 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
         <table>
           <thead><tr><th><?= $rot ?></th><th class="num2">V</th><th class="num2">D</th><th class="num2">%</th></tr></thead>
           <tbody>
-          <?php foreach (array_slice(League::standings($cf), 0, 12) as $i2 => $t):
+          <?php /* A conferência INTEIRA: cortar em doze escondia justamente
+                   quem está afundado — inclusive, às vezes, o próprio time
+                   da pessoa. */
+          foreach (League::standings($cf) as $i2 => $t):
             $meuT = (int) $t['id'] === $est['gm_id'];
             $pos = $i2 + 1;
             /* A zona diz mais que o número: verde entra direto, dourado vai
@@ -1122,6 +1255,8 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
         <?php foreach ($resumo['premios'] as $p): ?>
           <div class="premio">
             <span class="pr"><?= e($p['premio']) ?></span>
+            <?php if (!empty($p['logo'])): ?><img class="mini" src="<?= e($p['logo']) ?>" alt="<?= e($p['time']) ?>" loading="lazy" style="margin:2px 0 0">
+            <?php else: ?><span class="mini" style="margin:2px 0 0;background:<?= e($cor($p['cor'] ?? '')) ?>"><?= e(mb_substr($p['time'], 0, 2)) ?></span><?php endif; ?>
             <span class="pn"><b><?= e($p['nome']) ?></b> <small><?= e($p['time']) ?></small><br>
               <small class="dim"><?= e($p['linha']) ?></small></span>
           </div>
@@ -1141,8 +1276,23 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
           <b><i class="bi bi-coin"></i> <?= number_format($resumo['total'], 0, ',', '.') ?></b>
         </div>
 
+        <?php /* A IMAGEM DE COMPARTILHAR. O resumo desenhado num canvas
+                 1080×1350, pronto pro grupo: campeão, sua campanha, os cinco
+                 prêmios e as moedas. "Copiar" põe o PNG na área de
+                 transferência; onde o navegador não deixa (Safari antigo,
+                 http), sobra o Baixar. Os escudos entram com
+                 crossOrigin=anonymous — os da FBA são da própria casa, e os
+                 da ROOKIE (cdn da NBA) mandam CORS; quem falhar vira um
+                 quadrado com a sigla, e o canvas nunca contamina. */ ?>
+        <b class="bloco-rot">Compartilhar</b>
+        <canvas id="cardTemporada" width="1080" height="1350"></canvas>
+        <div class="linha-btns" style="margin-top:10px">
+          <button class="btn btn-fba" id="btCopiarCard" style="flex:1"><i class="bi bi-clipboard"></i> Copiar imagem</button>
+          <button class="btn btn-fraco" id="btBaixarCard" style="flex:1"><i class="bi bi-download"></i> Baixar</button>
+        </div>
+
         <div class="linha-btns" style="margin-top:16px">
-          <button class="btn btn-fba" id="fecharResumo2" style="flex:1"><i class="bi bi-check-lg"></i> Fechar</button>
+          <button class="btn" id="fecharResumo2" style="flex:1"><i class="bi bi-check-lg"></i> Fechar</button>
           <form method="post" style="flex:1" onsubmit="return confirm('Começar outra temporada com outro time?')">
             <button class="btn btn-fraco" name="acao" value="apagar" style="width:100%">Nova temporada</button>
           </form>
@@ -1158,6 +1308,189 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
     mr.onclick = ev => { if (ev.target === mr) fechar(); };
     document.addEventListener('keydown', ev => { if (ev.key === 'Escape') fechar(); });
     document.getElementById('abrirResumo')?.addEventListener('click', () => mr.classList.add('aberto'));
+
+  /* ═════ A IMAGEM DO RESUMO ═════
+     O cartão 1080×1350 desenhado no canvas com o mesmo pacote gráfico da
+     página: quadra sob spotlight, placas inclinadas, Oswald nos números.
+     Tudo client-side — nenhum GD no servidor, nenhuma dependência. */
+  const CARD = <?= json_encode([
+      'liga'    => $est['liga'],
+      'campeao' => $resumo['campeao'],
+      'vice'    => $resumo['vice'] ? $resumo['vice']['nome'] : null,
+      'meu'     => [
+          'nome' => temporadaNome($resumo['meu']),
+          'abbr' => (string) $resumo['meu']['abbr'],
+          'logo' => (string) ($resumo['meu']['logo_url'] ?? ''),
+          'cor'  => $corTime,
+          'v'    => (int) $resumo['meu']['wins'],
+          'd'    => (int) $resumo['meu']['losses'],
+          'fim'  => $resumo['meu_fim'],
+          'sou'  => (bool) $resumo['eu_campeao'],
+      ],
+      'premios' => $resumo['premios'],
+      'total'   => (int) $resumo['total'],
+      'mult'    => TemporadaPremios::multiplicador(),
+  ], JSON_UNESCAPED_UNICODE) ?>;
+
+  const cv = document.getElementById('cardTemporada');
+  const cx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+
+  const carrega = src => new Promise(res => {
+    if (!src) return res(null);
+    const im = new Image();
+    /* anonymous é o que deixa o canvas exportável: escudo da casa passa
+       direto, o cdn da NBA (ROOKIE) manda CORS, e quem recusar simplesmente
+       não carrega — cai no quadrado com a sigla, sem contaminar o canvas. */
+    im.crossOrigin = 'anonymous';
+    im.onload = () => res(im);
+    im.onerror = () => res(null);
+    im.src = src.startsWith('http') ? src : location.origin + src;
+  });
+
+  function placa(x, y, w, h, fill) {
+    cx.save(); cx.translate(x, y); cx.transform(1, 0, -0.18, 1, 0, 0);
+    cx.fillStyle = fill; cx.fillRect(0, 0, w, h); cx.restore();
+  }
+  function caixa(x, y, w, h, r) {
+    cx.beginPath();
+    cx.moveTo(x + r, y); cx.arcTo(x + w, y, x + w, y + h, r); cx.arcTo(x + w, y + h, x, y + h, r);
+    cx.arcTo(x, y + h, x, y, r); cx.arcTo(x, y, x + w, y, r); cx.closePath();
+  }
+  function escudo(im, abbr, corT, x, y, s) {
+    cx.save(); caixa(x, y, s, s, s * .22); cx.clip();
+    if (im) { cx.drawImage(im, x, y, s, s); }
+    else {
+      cx.fillStyle = corT || '#334155'; cx.fillRect(x, y, s, s);
+      cx.fillStyle = '#fff'; cx.font = '900 ' + (s * .34) + 'px Inter';
+      cx.textAlign = 'center'; cx.textBaseline = 'middle';
+      cx.fillText((abbr || '?').slice(0, 3), x + s / 2, y + s / 2 + s * .02);
+    }
+    cx.restore();
+    cx.save(); caixa(x, y, s, s, s * .22); cx.strokeStyle = 'rgba(255,255,255,.18)'; cx.lineWidth = 2; cx.stroke(); cx.restore();
+  }
+  function brilho(x, y, r, corHex, alfa) {
+    const g = cx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, corHex + Math.round(alfa * 255).toString(16).padStart(2, '0'));
+    g.addColorStop(1, corHex + '00');
+    cx.fillStyle = g; cx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+
+  async function desenhaCard() {
+    try { await document.fonts.load('italic 700 70px "Barlow Condensed"');
+          await document.fonts.load('600 80px Oswald');
+          await document.fonts.load('800 28px Inter'); } catch (e) {}
+
+    const camp = CARD.campeao;
+    const [imCamp, imMeu] = await Promise.all([
+      carrega(camp ? camp.logo : ''), carrega(CARD.meu.logo),
+    ]);
+    const imPremios = await Promise.all(CARD.premios.map(p => carrega(p.logo)));
+
+    // fundo: a quadra sob o spotlight
+    cx.fillStyle = '#05070d'; cx.fillRect(0, 0, W, H);
+    brilho(W / 2, -140, 720, '#fc0025', .18);
+    brilho(W / 2, -140, 430, '#f5c842', .10);
+    cx.strokeStyle = 'rgba(255,255,255,.045)'; cx.lineWidth = 2;
+    for (const r of [240, 380, 540]) { cx.beginPath(); cx.arc(W / 2, -60, r, 0, Math.PI * 2); cx.stroke(); }
+    cx.strokeStyle = 'rgba(255,255,255,.012)'; cx.lineWidth = 1;
+    for (let x = -H; x < W + H; x += 54) {
+      cx.beginPath(); cx.moveTo(x, 0); cx.lineTo(x + H * .47, H); cx.stroke();
+    }
+
+    // cabeçalho
+    placa(64, 58, 108, 52, '#fc0025');
+    cx.fillStyle = '#fff'; cx.textAlign = 'left'; cx.textBaseline = 'alphabetic';
+    cx.font = 'italic 700 34px "Barlow Condensed"'; cx.fillText('FBA', 88, 95);
+    cx.font = 'italic 700 40px "Barlow Condensed"'; cx.fillText('MINHA TEMPORADA', 192, 97);
+    cx.textAlign = 'right'; cx.fillStyle = '#95a1bd';
+    cx.font = 'italic 700 36px "Barlow Condensed"'; cx.fillText(CARD.liga, W - 64, 97);
+
+    // campeão
+    cx.textAlign = 'center';
+    cx.fillStyle = '#f5c842'; cx.font = '800 25px Inter';
+    cx.fillText('C A M P E Ã O   D A   F B A', W / 2, 190);
+    if (camp) {
+      brilho(W / 2, 330, 260, '#f5c842', .16);
+      escudo(imCamp, camp.nome, camp.cor, W / 2 - 95, 230, 190);
+      cx.fillStyle = '#fff'; cx.font = 'italic 700 76px "Barlow Condensed"';
+      cx.fillText(camp.nome.toUpperCase(), W / 2, 520, W - 140);
+      cx.fillStyle = '#95a1bd'; cx.font = '600 27px Inter';
+      let linhaV = 'venceu a final por ' + camp.serie + (CARD.vice ? '  ·  vice: ' + CARD.vice : '');
+      cx.fillText(linhaV, W / 2, 566, W - 120);
+    }
+
+    // divisor
+    cx.strokeStyle = 'rgba(255,255,255,.1)'; cx.lineWidth = 2;
+    cx.beginPath(); cx.moveTo(72, 614); cx.lineTo(W - 72, 614); cx.stroke();
+
+    // a minha campanha
+    escudo(imMeu, CARD.meu.abbr, CARD.meu.cor, 72, 650, 104);
+    cx.textAlign = 'left';
+    cx.fillStyle = '#5b688a'; cx.font = '800 20px Inter'; cx.fillText('S U A   C A M P A N H A', 200, 678);
+    cx.fillStyle = '#fff'; cx.font = 'italic 700 48px "Barlow Condensed"';
+    cx.fillText(CARD.meu.nome.toUpperCase(), 200, 727, W - 290);
+    cx.fillStyle = CARD.meu.sou ? '#f5c842' : '#95a1bd'; cx.font = '700 26px Inter';
+    cx.fillText(CARD.meu.v + '–' + CARD.meu.d + '  ·  ' + CARD.meu.fim.toUpperCase(), 200, 766, W - 290);
+
+    // prêmios
+    placa(64, 816, 190, 46, '#f5c842');
+    cx.fillStyle = '#201703'; cx.font = 'italic 700 29px "Barlow Condensed"'; cx.fillText('PRÊMIOS', 92, 849);
+    let y = 905;
+    for (let k = 0; k < CARD.premios.length; k++) {
+      const p = CARD.premios[k];
+      cx.fillStyle = '#f5c842'; cx.font = 'italic 700 30px "Barlow Condensed"';
+      cx.fillText(p.premio, 72, y + 12);
+      escudo(imPremios[k], p.time, p.cor, 182, y - 22, 48);
+      cx.fillStyle = '#fff'; cx.font = '700 30px Inter';
+      cx.fillText(p.nome, 248, y + 10, 560);
+      cx.fillStyle = '#5b688a'; cx.font = '600 22px Inter';
+      cx.textAlign = 'right'; cx.fillText(p.linha, W - 72, y + 9, 230);
+      cx.textAlign = 'left';
+      if (k < CARD.premios.length - 1) {
+        cx.strokeStyle = 'rgba(255,255,255,.055)'; cx.lineWidth = 1;
+        cx.beginPath(); cx.moveTo(72, y + 38); cx.lineTo(W - 72, y + 38); cx.stroke();
+      }
+      y += 76;
+    }
+
+    // moedas
+    const yM = y + 26;
+    caixa(64, yM, W - 128, 108, 16);
+    cx.fillStyle = 'rgba(245,200,66,.08)'; cx.fill();
+    cx.strokeStyle = 'rgba(245,200,66,.35)'; cx.lineWidth = 2; cx.stroke();
+    cx.fillStyle = '#95a1bd'; cx.font = '800 22px Inter';
+    cx.fillText('MOEDAS DA CAMPANHA  ·  ' + String(CARD.mult).replace('.', ',') + 'x', 100, yM + 64);
+    cx.textAlign = 'right';
+    cx.fillStyle = '#f5c842'; cx.font = '600 62px Oswald';
+    cx.fillText('+' + CARD.total.toLocaleString('pt-BR'), W - 100, yM + 76);
+    cx.textAlign = 'left';
+
+    // rodapé
+    cx.fillStyle = '#5b688a'; cx.font = '600 22px Inter'; cx.textAlign = 'center';
+    cx.fillText('fbabrasil.com.br  ·  FBA Games', W / 2, H - 46);
+    cx.textAlign = 'left';
+  }
+  desenhaCard();
+
+  const btCopiar = document.getElementById('btCopiarCard');
+  const btBaixar = document.getElementById('btBaixarCard');
+  btCopiar.onclick = () => cv.toBlob(async b => {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })]);
+      btCopiar.innerHTML = '<i class="bi bi-check-lg"></i> Copiada!';
+      setTimeout(() => btCopiar.innerHTML = '<i class="bi bi-clipboard"></i> Copiar imagem', 2200);
+    } catch (e) {
+      alert('O navegador não deixou copiar direto — usa o Baixar que dá no mesmo.');
+    }
+  }, 'image/png');
+  btBaixar.onclick = () => cv.toBlob(b => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = 'minha-temporada-' + CARD.liga.toLowerCase() + '.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }, 'image/png');
   </script>
   <?php endif; ?>
 

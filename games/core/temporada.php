@@ -297,12 +297,13 @@ function temporadaChaveamento(int $gmId): array
     if (in_array($fase, ['playin', 'playoffs', 'offseason'], true)) {
         $st = $db->query(
             "SELECT g.id, g.played, g.home_pts, g.away_pts, g.home_id, g.away_id,
+                    h.conf AS conf,
                     h.abbr ha, h.city hc, h.name hn, h.logo_url hlogo, h.primary_color hcor,
                     a.abbr aa, a.city ac, a.name an, a.logo_url alogo, a.primary_color acor
                FROM games g
                JOIN teams h ON h.id = g.home_id
                JOIN teams a ON a.id = g.away_id
-              WHERE g.stage = 'playin' ORDER BY g.id");
+              WHERE g.stage = 'playin' ORDER BY h.conf, g.id");
         $playin = $st->fetchAll();
     }
 
@@ -373,6 +374,7 @@ function temporadaResumo(int $gmId): ?array
 
     // Os prêmios: quem terminou na frente de cada corrida.
     $race = League::awardRace();
+    $logos = temporadaLogos();
     $premios = [];
     // Os apelidos, como a liga fala: MVP, MIP, 6H, DPOY, ROY.
     foreach (['mvp' => 'MVP', 'mip' => 'MIP', 'sexto' => '6H',
@@ -383,6 +385,8 @@ function temporadaResumo(int $gmId): ?array
             'premio' => $rot,
             'nome'   => $p['name'],
             'time'   => $p['abbr'],
+            'logo'   => $logos[$p['abbr']]['logo'] ?? '',
+            'cor'    => $logos[$p['abbr']]['cor'] ?? '',
             'linha'  => $k === 'dpoy'
                 ? number_format((float) $p['bpg'], 1) . ' tocos · ' . number_format((float) $p['spg'], 1) . ' roubos'
                 : ($k === 'mip'
