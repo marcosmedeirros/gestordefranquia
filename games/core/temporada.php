@@ -540,6 +540,32 @@ function temporadaEscudo(?string $url, int $lado = 96): string
     return '/games/escudo.php?f=' . rawurlencode($m[1]) . '&s=' . $px;
 }
 
+/**
+ * O MONOGRAMA DE QUEM NÃO TEM ESCUDO.
+ *
+ * Nem todo time da liga subiu foto — o Mesa Eagles é o único da NEXT sem
+ * uma, e aparecia como um quadrado liso que não se lê como time nenhum.
+ * Aqui as iniciais viram o escudo: "Mesa Eagles" → ME, "Bed-Stuy Alley
+ * Dogs" → BD. Uma letra por palavra, até duas, que é o que cabe legível
+ * num quadrado de 23 pixels.
+ *
+ * Isto é remendo, não conserto: o certo é o time subir o escudo no site.
+ */
+function temporadaMonograma(string $nome): string
+{
+    $palavras = preg_split('/[\s\-]+/u', trim($nome), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    $letras = '';
+    foreach ($palavras as $p) {
+        $c = mb_substr($p, 0, 1);
+        // Artigo e preposição não viram inicial: "City of Angels" é CA.
+        if (mb_strlen($p) <= 2 && $letras !== '') continue;
+        $letras .= mb_strtoupper($c);
+        if (mb_strlen($letras) >= 2) break;
+    }
+    if ($letras === '') $letras = mb_strtoupper(mb_substr($nome, 0, 2));
+    return $letras;
+}
+
 /** Nome cheio de um time, sem o espaço sobrando de quem não tem cidade. */
 function temporadaNome(?array $t, string $prefixo = ''): string
 {

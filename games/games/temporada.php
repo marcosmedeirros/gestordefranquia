@@ -322,6 +322,21 @@ img{-webkit-user-drag:none}
 .timecard img.escudo,.timecard .es{width:52px;height:52px;border-radius:12px;object-fit:cover;flex:none;
      display:grid;place-items:center;font-weight:900;font-size:14px;color:#fff;
      filter:drop-shadow(0 4px 10px rgba(0,0,0,.5))}
+
+/* ── O ESCUDO DE QUEM NÃO TEM ESCUDO ──────────────────────────────────
+   Time sem foto no site (o Mesa Eagles é o único da NEXT) caía num
+   quadrado de cor chapada que não se lê como time nenhum. Com gradiente,
+   borda clara e as iniciais em caixa alta condensada, ele pelo menos se
+   parece com um emblema — e, lado a lado com os escudos de verdade, não
+   destoa a ponto de parecer defeito. O conserto mesmo é subir a foto. */
+.es{background-image:linear-gradient(145deg,rgba(255,255,255,.26),transparent 58%);
+    border:1px solid rgba(255,255,255,.2);
+    font-family:'Barlow Condensed',sans-serif;font-style:italic;letter-spacing:.5px;
+    text-shadow:0 1px 3px rgba(0,0,0,.45)}
+.timecard .es{font-size:21px}
+.hero-escudo{background-image:linear-gradient(145deg,rgba(255,255,255,.24),transparent 58%)}
+.mini{background-image:linear-gradient(145deg,rgba(255,255,255,.26),transparent 58%);
+      font-family:'Barlow Condensed',sans-serif;font-style:italic}
 .timecard .n{flex:1;min-width:0}
 /* filhos em bloco de propósito: .n é <span> (cabe no <label>) e span é
    inline — altura de filho inline é ignorada e a barra sumia da tela. */
@@ -728,7 +743,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
                data-nome="<?= e($nome) ?>" data-logo="<?= e($logo) ?>" data-mult="<?= $mult ?>" data-cor="<?= e($c) ?>">
         <span class="check"><i class="bi bi-check-lg"></i></span>
         <?php if ($logo): ?><img class="escudo" src="<?= e(temporadaEscudo($logo, 52)) ?>" alt="" loading="lazy" decoding="async" width="52" height="52">
-        <?php else: ?><span class="es" style="background:<?= e($c) ?>"><?= e(mb_strtoupper(mb_substr($nome, 0, 2))) ?></span><?php endif; ?>
+        <?php else: ?><span class="es" style="background:<?= e($c) ?>"><?= e(temporadaMonograma($nome)) ?></span><?php endif; ?>
         <span class="n">
           <b><?= e($nome) ?></b>
           <small><?= strtoupper((string) $t['conference']) === 'LESTE' ? 'Leste' : 'Oeste' ?> · teto <?= (int) $t['teto'] ?> · <?= (int) $t['jogadores'] ?> jogadores</small>
@@ -1224,7 +1239,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
             <tr class="<?= $meuT ? 'eu' : '' ?><?= $pos === 10 ? ' corte' : '' ?>">
               <td><span class="seed <?= $zona ?>"><?= $pos ?></span>
                 <?php if (!empty($t['logo_url'])): ?><img class="mini" src="<?= e(temporadaEscudo($t["logo_url"], 24)) ?>" alt="" loading="lazy" decoding="async" width="23" height="23">
-                <?php else: ?><span class="mini" style="background:<?= e($cor($t['primary_color'])) ?>"><?= e(mb_substr($t['abbr'], 0, 2)) ?></span><?php endif; ?>
+                <?php else: ?><span class="mini" style="background:<?= e($cor($t["primary_color"])) ?>"><?= e(temporadaMonograma(temporadaNome($t))) ?></span><?php endif; ?>
                 <?= e(temporadaNome($t)) ?></td>
               <td class="num2"><?= (int) $t['wins'] ?></td>
               <td class="num2"><?= (int) $t['losses'] ?></td>
@@ -1260,7 +1275,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
           $lg = $logos[$p['abbr']] ?? null; ?>
           <div class="l"><span class="p"><?= $i2 + 1 ?></span>
             <?php if (!empty($lg['logo'])): ?><img class="mini" src="<?= e(temporadaEscudo($lg["logo"], 24)) ?>" alt="<?= e($p['abbr']) ?>" title="<?= e($p['abbr']) ?>" loading="lazy" style="margin:0">
-            <?php else: ?><span class="mini" style="margin:0;background:<?= e($cor($lg['cor'] ?? '')) ?>"><?= e(mb_substr($p['abbr'], 0, 2)) ?></span><?php endif; ?>
+            <?php else: ?><span class="mini" style="margin:0;background:<?= e($cor($lg["cor"] ?? "")) ?>"><?= e(mb_substr($p["abbr"], 0, 2)) ?></span><?php endif; ?>
             <span class="col">
               <span class="nm"><?= e($p['name']) ?></span>
               <span class="vl"><?= e($val($p)) ?></span>
@@ -1359,7 +1374,7 @@ tr.corte td{border-bottom:1px dashed var(--linha2)}
           <?php if (!empty($ep['logo'])): ?>
             <img src="<?= e(temporadaEscudo($ep['logo'], 46)) ?>" alt="" decoding="async">
           <?php else: ?>
-            <span class="es" style="background:<?= e($cor($ep['cor'])) ?>"><?= e(mb_substr($ep['nome'], 0, 2)) ?></span>
+            <span class="es" style="background:<?= e($cor($ep["cor"])) ?>"><?= e(temporadaMonograma($ep["nome"])) ?></span>
           <?php endif; ?>
           <div>
             <b><?= e($ep['nome']) ?></b>
