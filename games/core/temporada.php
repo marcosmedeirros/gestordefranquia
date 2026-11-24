@@ -4,9 +4,8 @@
  *
  * Você escolhe um time da FBA e simula a temporada dele: os 82 jogos, um a
  * um, com box score; os outros times você só acompanha na tabela. No fim,
- * play-in, playoffs e as corridas de MVP, Evolução, 6º Homem, Defensor e
- * Novato. Cada etapa vencida paga moeda, e paga mais quanto pior for o
- * elenco que você pegou.
+ * play-in, playoffs e as corridas de MVP, MIP, 6H, DPOY e ROY. Cada etapa
+ * vencida paga moeda, e paga mais quanto pior for o elenco que você pegou.
  *
  * ── UM SAVE POR PESSOA ───────────────────────────────────────────────
  * Não há slots. A temporada é uma aposta: você escolhe o time sabendo o que
@@ -375,8 +374,9 @@ function temporadaResumo(int $gmId): ?array
     // Os prêmios: quem terminou na frente de cada corrida.
     $race = League::awardRace();
     $premios = [];
-    foreach (['mvp' => 'MVP', 'mip' => 'Evolução do ano', 'sexto' => 'Sexto Homem',
-              'dpoy' => 'Defensor do ano', 'roy' => 'Novato do ano'] as $k => $rot) {
+    // Os apelidos, como a liga fala: MVP, MIP, 6H, DPOY, ROY.
+    foreach (['mvp' => 'MVP', 'mip' => 'MIP', 'sexto' => '6H',
+              'dpoy' => 'DPOY', 'roy' => 'ROY'] as $k => $rot) {
         $p = $race[$k][0] ?? null;
         if (!$p) continue;
         $premios[] = [
@@ -427,6 +427,25 @@ function temporadaResumoVisto(): bool
 function temporadaMarcarResumoVisto(): void
 {
     Database::setMeta('resumo_visto', '1');
+}
+
+/**
+ * Escudo e cor de cada time, pela sigla.
+ *
+ * As corridas de prêmio e o box score falam de jogadores e só carregam a
+ * sigla do time. Com este mapa elas mostram o escudo, que é como a liga
+ * reconhece um time — a sigla sozinha é um enigma de três letras.
+ */
+function temporadaLogos(): array
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+
+    $cache = [];
+    foreach (Database::conn()->query("SELECT abbr, logo_url, primary_color FROM teams")->fetchAll() as $t) {
+        $cache[$t['abbr']] = ['logo' => $t['logo_url'], 'cor' => $t['primary_color']];
+    }
+    return $cache;
 }
 
 /** Nome cheio de um time, sem o espaço sobrando de quem não tem cidade. */

@@ -51,10 +51,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($acao === 'apagar') { temporadaApagar($user_id); header('Location: /games/games/temporada.php'); exit; }
 
     if (temporadaAbrir($user_id)) {
-        if ($acao === 'proximo') {
+        /* ASSISTIR E SIMULAR SÃO O MESMO JOGO, dois jeitos de ver.
+           O motor roda igual nos dois; o que muda é se a tela reproduz lance a
+           lance ou vai direto pro resultado. Quem simula não fica sem nada:
+           cai no box score, que é o jogo contado em números. */
+        if ($acao === 'proximo' || $acao === 'simular') {
             $r = temporadaProximoJogo();
-            // Volta direto na transmissão do jogo: é o que a pessoa clicou pra ver.
-            header('Location: /games/games/temporada.php' . ($r['jogo'] ? '?jogo=' . (int) $r['jogo'] . '&vivo=1' : ''));
+            $destino = $r['jogo']
+                ? '?jogo=' . (int) $r['jogo'] . ($acao === 'proximo' ? '&vivo=1' : '&box=1')
+                : '';
+            header('Location: /games/games/temporada.php' . $destino);
             exit;
         }
         if ($acao === 'varios') {
@@ -74,14 +80,18 @@ $tem = temporadaAbrir($user_id);
 $premiosNovos = $tem ? TemporadaPremios::reconciliar($user_id) : [];
 $moedas = (int) ($pdo->query('SELECT pontos FROM games_usuarios WHERE id = ' . $user_id)->fetchColumn() ?: 0);
 
+/* A ELITE JÁ VEM ABERTA. É a divisão de cima e a que a liga pensa primeiro;
+   abrir numa tela que não mostra time nenhum é um clique cobrado de todo
+   mundo pra chegar onde quase todo mundo ia. */
 $liga = strtoupper(trim((string) ($_GET['liga'] ?? '')));
-if (!in_array($liga, TemporadaLiga::LIGAS, true)) $liga = '';
+if (!in_array($liga, TemporadaLiga::LIGAS, true)) $liga = 'ELITE';
 
 $est    = $tem ? temporadaEstado() : null;
 $jogoId = (int) ($_GET['jogo'] ?? 0);
 $aoVivo = $tem && $jogoId && !empty($_GET['vivo']);
+$verBox = $tem && $jogoId && !empty($_GET['box']);
 $trans  = $tem && $jogoId ? temporadaJogoAoVivo($jogoId) : null;
-if (!$trans) { $aoVivo = false; $jogoId = 0; }
+if (!$trans) { $aoVivo = false; $verBox = false; $jogoId = 0; }
 
 /** Cor válida ou a reserva. */
 $cor = fn($c, $padrao = '#334155') => preg_match('/^#[0-9a-f]{6}$/i', trim((string) $c)) ? trim((string) $c) : $padrao;
@@ -327,6 +337,19 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
 .total{display:flex;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--linha);
        font-size:14px;font-weight:700}
 .total b{margin-left:auto;color:var(--ouro);font-size:19px;font-variant-numeric:tabular-nums}
+/* placar do box score */
+.box-placar{display:flex;align-items:center;gap:10px;padding:22px 18px 18px;
+            background:linear-gradient(100deg,var(--cA) -45%,#131a2a 42%,#131a2a 58%,var(--cB) 145%)}
+.box-placar .bx{color:var(--txt3);font-family:'Barlow Condensed',sans-serif;font-size:19px;flex:none}
+.box-placar .bt{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;opacity:.62}
+.box-placar .bt.venceu{opacity:1}
+.box-placar img,.box-placar .es{width:46px;height:46px;border-radius:12px;object-fit:cover;
+            display:grid;place-items:center;font-weight:900;font-size:13px;background:#0007;border:1px solid #ffffff1c}
+.box-placar b{font-size:12.5px;line-height:1.3}
+.box-placar .pts{font-family:Oswald,sans-serif;font-size:36px;line-height:1;font-variant-numeric:tabular-nums}
+.box-placar .bt.venceu .pts{color:var(--ouro)}
+.modal-corpo table{margin-bottom:4px}
+
 .btn-resumo{background:#f5c84218;border:1px solid #f5c84250;color:var(--ouro);
             padding:9px 14px;border-radius:11px;font-weight:700;font-size:13px;cursor:pointer;
             display:inline-flex;align-items:center;gap:7px;margin-top:14px}
@@ -353,34 +376,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
 
 <?php if (!$tem): /* ═════════════ ESCOLHA DO TIME ═════════════ */ ?>
 
-  <div class="painel" style="background:linear-gradient(135deg,#1a2338,#111725)">
-    <h2><i class="bi bi-trophy-fill" style="color:var(--ouro)"></i> Minha Temporada</h2>
-    <p class="dim">
-      Pegue um time da FBA e leve ele até o título. Você <b>assiste a cada um dos 82 jogos</b> —
-      relógio correndo, placar subindo, lance a lance — e acompanha o resto da liga pela tabela.
-      No fim vêm o play-in, os playoffs e as corridas de MVP, Evolução, 6º Homem, Defensor e Novato.
-    </p>
-    <p class="dim" style="margin-bottom:0">
-      Cada etapa vencida paga moeda, e paga <b>mais quanto pior for o elenco que você escolher</b>.
-      Os elencos são os que estão no site agora.
-    </p>
-  </div>
-
-  <div class="painel">
-    <h2><i class="bi bi-diagram-3-fill"></i> 1. A liga</h2>
-    <div class="ligas">
-      <?php foreach ([
-        'ELITE'  => 'A divisão de cima. 32 times, os melhores elencos.',
-        'NEXT'   => '30 times, um degrau abaixo da ELITE.',
-        'RISE'   => '30 times em formação.',
-        'ROOKIE' => '30 times, a porta de entrada.',
-      ] as $l => $txt): ?>
-        <a class="ligacard<?= $l === $liga ? ' on' : '' ?>" href="?liga=<?= $l ?>"><b><?= $l ?></b><p><?= e($txt) ?></p></a>
-      <?php endforeach; ?>
-    </div>
-  </div>
-
-  <?php if ($liga):
+  <?php
     $times = TemporadaLiga::timesDaLiga($liga);
     $ovrs = array_map(fn($t) => (float) $t['ovr_medio'], $times);
     $piso = $ovrs ? min($ovrs) : 0; $topo = $ovrs ? max($ovrs) : 1;
@@ -388,6 +384,41 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
   <form method="post">
     <input type="hidden" name="acao" value="comecar">
     <input type="hidden" name="liga" value="<?= e($liga) ?>">
+
+    <?php /* NOME E BOTÃO NO TOPO. Estavam no fim, depois de trinta e dois
+             cartões de time: pra começar a jogar era preciso rolar a lista
+             inteira de novo, já tendo escolhido. Aqui em cima eles ficam à
+             vista o tempo todo, e o botão diz qual time está marcado — que é
+             a confirmação que a pessoa procurava lá embaixo. */ ?>
+    <div class="painel inicio" style="background:linear-gradient(135deg,#1a2338,#111725)">
+      <h2><i class="bi bi-trophy-fill" style="color:var(--ouro)"></i> Minha Temporada</h2>
+      <p class="dim" style="margin-top:0">
+        Pegue um time da FBA e leve ele até o título. Você <b>assiste a cada um dos 82 jogos</b> —
+        relógio correndo, placar subindo, lance a lance — e acompanha o resto da liga pela tabela.
+        Cada etapa de playoff paga moeda, e paga <b>mais quanto pior for o elenco que escolher</b>.
+      </p>
+      <div class="comecar">
+        <input name="gm_nome" maxlength="40" placeholder="Seu nome de GM" class="inp" value="<?= e($user['name'] ?? '') ?>">
+        <button class="btn btn-fba btn-g" type="submit" id="btComecar" disabled>
+          <i class="bi bi-play-fill"></i> <span id="btComecarTxt">Escolha um time abaixo</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="painel">
+      <h2><i class="bi bi-diagram-3-fill"></i> 1. A liga</h2>
+      <div class="ligas">
+        <?php foreach ([
+          'ELITE'  => 'A divisão de cima. 32 times, os melhores elencos.',
+          'NEXT'   => '30 times, um degrau abaixo da ELITE.',
+          'RISE'   => '30 times em formação.',
+          'ROOKIE' => '30 times, a porta de entrada.',
+        ] as $l => $txt): ?>
+          <a class="ligacard<?= $l === $liga ? ' on' : '' ?>" href="?liga=<?= $l ?>"><b><?= $l ?></b><p><?= e($txt) ?></p></a>
+        <?php endforeach; ?>
+      </div>
+    </div>
+
     <div class="painel">
       <h2><i class="bi bi-people-fill"></i> 2. O time <span class="sub">do elenco mais forte<br>pro mais fraco</span></h2>
       <div class="times">
@@ -403,7 +434,11 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
                            : ['Pior da liga — paga o máximo', 'var(--ok)']));
         ?>
         <label class="timecard">
-          <input type="radio" name="fba_team_id" value="<?= (int) $t['id'] ?>" <?= $i === 0 ? 'required' : '' ?>>
+          <?php /* Sem `required`: o rádio é invisível por CSS, e campo
+                   obrigatório que o navegador não consegue focar trava o
+                   envio com um erro que ninguém vê. Quem segura o botão é o
+                   script lá embaixo. */ ?>
+          <input type="radio" name="fba_team_id" value="<?= (int) $t['id'] ?>" data-nome="<?= e($nome) ?>">
           <?php if ($logo): ?><img src="<?= e($logo) ?>" alt="" loading="lazy" style="background:<?= e($c) ?>">
           <?php else: ?><span class="es" style="background:<?= e($c) ?>"><?= e(mb_strtoupper(mb_substr($nome, 0, 2))) ?></span><?php endif; ?>
           <span class="n">
@@ -416,14 +451,16 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
         <?php endforeach; ?>
       </div>
     </div>
-    <div class="painel">
-      <h2><i class="bi bi-person-badge"></i> 3. Seu nome</h2>
-      <p><input name="gm_nome" maxlength="40" placeholder="GM" class="inp"></p>
-      <button class="btn btn-fba btn-g" type="submit"><i class="bi bi-play-fill"></i> Começar a temporada</button>
-      <p class="dim" style="margin-bottom:0">Monta a liga inteira com os elencos de agora e o calendário de 82 jogos.</p>
-    </div>
   </form>
-  <?php endif; ?>
+  <script>
+    /* O botão só liga depois que um time está marcado, e passa a dizer qual.
+       É o que substitui o `required` no rádio invisível. */
+    const bt = document.getElementById('btComecar'), btx = document.getElementById('btComecarTxt');
+    document.querySelectorAll('input[name=fba_team_id]').forEach(r => r.addEventListener('change', () => {
+      bt.disabled = false;
+      btx.textContent = 'Começar com o ' + r.dataset.nome;
+    }));
+  </script>
 
 <?php elseif ($aoVivo): /* ═════════════ TRANSMISSÃO ═════════════ */
   $jg = $trans['jogo'];
@@ -476,31 +513,13 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
     </div>
   </div>
 
-  <div class="painel" id="boxPainel" style="display:none">
-    <h2><i class="bi bi-clipboard-data"></i> Box score</h2>
-    <div class="duas">
-      <?php
-      $porTime = [];
-      foreach ($trans['box'] as $b) $porTime[(int) $b['team_id']][] = $b;
-      foreach ([$foraId, $casaId] as $tid): ?>
-      <div>
-        <table>
-          <thead><tr><th><?= e(trim(($tc[$tid]['city'] ?? '') . ' ' . ($tc[$tid]['name'] ?? ''))) ?></th>
-            <th class="num2">MIN</th><th class="num2">PTS</th><th class="num2">REB</th>
-            <th class="num2">AST</th><th class="num2">FG</th></tr></thead>
-          <tbody>
-          <?php foreach ($porTime[$tid] ?? [] as $b): ?>
-            <tr><td><?= e($b['name']) ?> <small style="color:var(--txt3)"><?= e($b['pos']) ?></small></td>
-              <td class="num2"><?= (int) $b['min'] ?></td><td class="num2"><b><?= (int) $b['pts'] ?></b></td>
-              <td class="num2"><?= (int) $b['reb'] ?></td><td class="num2"><?= (int) $b['ast'] ?></td>
-              <td class="num2"><?= (int) $b['fgm'] ?>/<?= (int) $b['fga'] ?></td></tr>
-          <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-      <?php endforeach; ?>
-    </div>
-  </div>
+  <?php
+  /* O BOX SCORE É O MESMO NOS DOIS CAMINHOS, então mora num só lugar: quem
+     assistiu vê ele abrir quando o jogo acaba, quem só simulou cai direto
+     nele. @see temporada_box.php */
+  $boxJogo = $trans; $boxAbreSozinho = false; $boxVoltar = null;
+  include __DIR__ . '/../core/temporada_box.php';
+  ?>
 
   <script>
   /* ── A TRANSMISSÃO ──────────────────────────────────────────────────
@@ -566,9 +585,10 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
     $('tvRelogio').textContent = '0:00';
     $('tvBarra').style.width = '100%';
     $('tvFim').style.display = 'block';
-    $('boxPainel').style.display = 'block';
     $('btPausar').disabled = true;
     $('btPular').disabled = true;
+    // O jogo acabou: o box score é a próxima coisa que a pessoa quer ver.
+    if (window.abrirBoxScore) setTimeout(window.abrirBoxScore, 650);
   }
 
   $('btPausar').onclick = () => {
@@ -661,11 +681,21 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
           <small><?= (int) $prox[$pre . 'v'] ?>–<?= (int) $prox[$pre . 'd'] ?></small>
         </div>
       </div>
-      <form method="post" style="text-align:center">
-        <button class="btn btn-fba btn-g" name="acao" value="proximo" style="width:100%;max-width:380px">
-          <i class="bi bi-play-circle-fill"></i> Assistir ao jogo
-        </button>
-      </form>
+      <?php /* DOIS JEITOS DE VER O MESMO JOGO: acompanhar lance a lance, ou
+               ir direto ao box score. O motor roda igual nos dois — quem
+               simula não está pulando o jogo, está pulando a transmissão. */ ?>
+      <div class="linha-btns" style="justify-content:center">
+        <form method="post" style="flex:1;max-width:300px">
+          <button class="btn btn-fba btn-g" name="acao" value="proximo" style="width:100%">
+            <i class="bi bi-play-circle-fill"></i> Assistir
+          </button>
+        </form>
+        <form method="post" style="flex:1;max-width:300px">
+          <button class="btn btn-g" name="acao" value="simular" style="width:100%">
+            <i class="bi bi-fast-forward-fill"></i> Simular
+          </button>
+        </form>
+      </div>
       <div class="linha-btns" style="justify-content:center;margin-top:10px">
         <form method="post"><input type="hidden" name="n" value="5">
           <button class="btn btn-fraco" name="acao" value="varios">Pular 5 jogos</button></form>
@@ -673,7 +703,7 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
           <button class="btn btn-fraco" name="acao" value="varios">Pular até o fim</button></form>
       </div>
       <p class="dim" style="text-align:center;margin:10px 0 0;font-size:12px">
-        Pular simula sem transmitir — o resultado é o mesmo, você só não vê acontecer.
+        <b>Simular</b> vai direto pro box score. <b>Pular</b> resolve vários jogos de uma vez, sem parar em nenhum.
       </p>
     <?php else: ?>
       <p class="dim">Sem jogo marcado pro seu time agora.</p>
@@ -771,17 +801,22 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
       <?php
       $pra = fn($p) => number_format((float) $p['ppg'], 1) . ' · ' . number_format((float) $p['rpg'], 1)
                      . ' · ' . number_format((float) $p['apg'], 1);
+      $logos = temporadaLogos();
+      // Os apelidos que a liga usa, não os nomes por extenso.
       foreach ([
-        'mvp'   => ['MVP',      $pra],
-        'mip'   => ['Evolução', fn($p) => '+' . number_format((float) $p['score'], 1) . ' s/ o OVR'],
-        'sexto' => ['6º Homem', $pra],
-        'dpoy'  => ['Defensor', fn($p) => number_format((float) $p['bpg'], 1) . ' toc · ' . number_format((float) $p['spg'], 1) . ' rb'],
-        'roy'   => ['Novato',   $pra],
+        'mvp'   => ['MVP',  $pra],
+        'mip'   => ['MIP',  fn($p) => '+' . number_format((float) $p['score'], 1) . ' s/ o OVR'],
+        'sexto' => ['6H',   $pra],
+        'dpoy'  => ['DPOY', fn($p) => number_format((float) $p['bpg'], 1) . ' toc · ' . number_format((float) $p['spg'], 1) . ' rb'],
+        'roy'   => ['ROY',  $pra],
       ] as $k => [$rot, $val]): ?>
         <div class="corrida"><b class="rot"><?= e($rot) ?></b>
-          <?php if (!empty($race[$k])): foreach (array_slice($race[$k], 0, 3) as $i2 => $p): ?>
+          <?php if (!empty($race[$k])): foreach (array_slice($race[$k], 0, 3) as $i2 => $p):
+            $lg = $logos[$p['abbr']] ?? null; ?>
             <div class="l"><span class="p"><?= $i2 + 1 ?></span>
-              <span class="nm"><?= e($p['name']) ?> <small style="color:var(--txt3)"><?= e($p['abbr']) ?></small></span>
+              <?php if (!empty($lg['logo'])): ?><img class="mini" src="<?= e($lg['logo']) ?>" alt="<?= e($p['abbr']) ?>" title="<?= e($p['abbr']) ?>" loading="lazy" style="margin:0">
+              <?php else: ?><span class="mini" style="margin:0;background:<?= e($cor($lg['cor'] ?? '')) ?>"><?= e(mb_substr($p['abbr'], 0, 2)) ?></span><?php endif; ?>
+              <span class="nm"><?= e($p['name']) ?></span>
               <span class="vl"><?= e($val($p)) ?></span></div>
           <?php endforeach; else: ?>
             <div class="l" style="color:var(--txt3)">Poucos jogos ainda.</div>
@@ -806,6 +841,13 @@ tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--fba)}
       <button class="btn btn-fraco" name="acao" value="apagar"><i class="bi bi-trash3"></i> Apagar e escolher outro time</button>
     </form>
   </div>
+
+  <?php /* O BOX SCORE DE QUEM MANDOU SIMULAR. Mesmo pop-up da transmissão —
+           quem simulou não fica sem o jogo, fica sem a narração. */
+  if ($verBox && $trans):
+    $boxJogo = $trans; $boxAbreSozinho = true; $boxVoltar = '/games/games/temporada.php';
+    include __DIR__ . '/../core/temporada_box.php';
+  endif; ?>
 
   <?php /* ═════ O RESUMO DA TEMPORADA ═════
            Abre sozinho quando a última série acaba, e só uma vez — depois
