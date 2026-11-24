@@ -306,6 +306,12 @@ $page = $_GET['p'] ?? 'home';
 if (in_array($page, ['lineup', 'cap'], true) && League::phase() === 'preseason' && Database::meta('guide_done') !== '1') {
     Database::setMeta($page === 'lineup' ? 'guide_lineup' : 'guide_cap', '1');
 }
+/* AS MOEDAS DA TEMPORADA. Roda em todo carregamento de página do save: se o
+   time passou de fase em qualquer um dos caminhos de simulação, a moeda cai
+   aqui, uma vez só. Fora do modo FBA é um `meta` lido e nada mais. */
+require_once dirname(__DIR__) . '/src/FbaPremios.php';
+$GLOBALS['FBA_PREMIOS_NOVOS'] = FbaPremios::reconciliar((int) ($_SESSION['user_id'] ?? 0));
+
 $views = dirname(__DIR__) . '/src/views/';
 $map = [
     'home' => 'home.php',

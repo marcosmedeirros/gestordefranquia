@@ -233,8 +233,14 @@ class InstallerFBA
 
     // ─────────────────────────────────────────────────────────────────────
 
-    /** Conexão somente-leitura ao banco do site. @see Accounts::mainConn() */
-    private static function fbaConn(): PDO
+    /**
+     * Conexão ao banco do site.
+     *
+     * Nasceu só pra ler os elencos, e é quase só isso que faz. A exceção é o
+     * pagamento das moedas (@see FbaPremios), que precisa escrever em
+     * `games_usuarios` — a carteira do Games mora lá, não aqui no save.
+     */
+    public static function fbaConn(): PDO
     {
         $cfg = Database::config();
         $m = $cfg['main_mysql'] ?? null;

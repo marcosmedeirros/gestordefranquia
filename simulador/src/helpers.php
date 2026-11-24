@@ -310,6 +310,30 @@ function page_head(string $title, array $o = []): void
     echo '</div>';
     if (!empty($o['actions'])) echo '<div class="ph-actions">' . $o['actions'] . '</div>';
     echo '</header>';
+    fba_premios_flash();
+}
+
+/**
+ * O aviso de moeda paga, logo abaixo do título da página.
+ *
+ * Mora aqui porque toda tela chama page_head(), e a etapa pode ser vencida em
+ * qualquer caminho — avançar o dia, simular a rodada, simular até o fim. Em
+ * vez de lembrar de mostrar o aviso em cada uma dessas telas, ele aparece na
+ * primeira que carregar depois do pagamento. @see FbaPremios::reconciliar()
+ */
+function fba_premios_flash(): void
+{
+    if (empty($GLOBALS['FBA_PREMIOS_NOVOS'])) return;
+    $premios = $GLOBALS['FBA_PREMIOS_NOVOS'];
+    $GLOBALS['FBA_PREMIOS_NOVOS'] = [];   // uma vez só por carregamento
+
+    $total = array_sum(array_column($premios, 'moedas'));
+    echo '<section class="panel" style="border-color:#eab308">';
+    echo '<div class="panel-head"><h2>' . bi('coin') . 'Você ganhou ' . (int) $total . ' moedas</h2></div><ul>';
+    foreach ($premios as $p) {
+        echo '<li><strong>' . e($p['rotulo']) . '</strong> — +' . (int) $p['moedas'] . '</li>';
+    }
+    echo '</ul><p class="dim">As moedas já estão na sua conta do FBA Games.</p></section>';
 }
 
 /** Cabeçalho de painel. $o: icon, meta (texto), more ([rótulo, href]), right (html). */

@@ -438,6 +438,12 @@ class Accounts
            alto. */
         Database::setMeta('phase', 'regular');
 
+        /* A força do time é medida AGORA e congelada: é ela que decide quanto
+           cada etapa vai pagar. Medir depois deixaria a conta à mercê de uma
+           troca feita no site no meio da temporada. @see FbaPremios */
+        require_once __DIR__ . '/FbaPremios.php';
+        FbaPremios::calibrar((int) $team['id']);
+
         $db->prepare("UPDATE saves SET team_abbr=? WHERE id=?")->execute([$team['abbr'], $saveId]);
 
         self::remember('sim_save_id', $saveId);
