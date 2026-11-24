@@ -226,6 +226,90 @@ function temporadaProximoAdversario(int $gmId): ?array
     return $st->fetch() ?: null;
 }
 
+/**
+ * O JOGO INTEIRO PRA ASSISTIR, lance a lance.
+ *
+ * O motor já guarda o play-by-play de cada partida simulada (games.pbp): cada
+ * lance com o quarto, o relógio, o placar daquele instante e o texto. Então a
+ * transmissão não precisa de um simulador ao vivo no servidor — a partida é
+ * simulada de uma vez, em menos de dois décimos, e a tela REPRODUZ o que
+ * aconteceu, com o relógio andando e o placar subindo.
+ *
+ * É mais honesto que um "ao vivo" de verdade, inclusive: o resultado não muda
+ * se a pessoa fechar a aba no meio.
+ *
+ * @return array{jogo:array,pbp:array,box:array}|null
+ */
+function temporadaJogoAoVivo(int $gameId): ?array
+{
+    $g = League::game($gameId);
+    if (!$g || empty($g['played'])) return null;
+
+    $pbp = $g['pbp'] ? json_decode((string) $g['pbp'], true) : [];
+    if (!is_array($pbp)) $pbp = [];
+
+    $cores = Database::conn()->prepare(
+        "SELECT id, abbr, city, name, primary_color, logo_url FROM teams WHERE id IN (?, ?)");
+    $cores->execute([(int) $g['home_id'], (int) $g['away_id']]);
+    $times = [];
+    foreach ($cores->fetchAll() as $t) $times[(int) $t['id']] = $t;
+
+    return [
+        'jogo'  => $g,
+        'times' => $times,
+        'pbp'   => $pbp,
+        'box'   => League::boxScore($gameId),
+    ];
+}
+
+/**
+ * O chaveamento, pronto pra desenhar: rodada → conferência → séries.
+ *
+ * Inclui o play-in, que não vira `playoff_series` nenhuma — ele é disputado em
+ * jogo único e o motor guarda só o resultado. Sem tratá-lo, a tela ficava
+ * VAZIA justo no dia em que a temporada regular acaba e a liga quer ver quem
+ * passou.
+ */
+function temporadaChaveamento(int $gmId): array
+{
+    $db = Database::conn();
+    $fase = League::phase();
+
+    $series = $db->query(
+        "SELECT s.round, s.conf, s.high_seed, s.low_seed, s.high_wins, s.low_wins,
+                s.winner_id, s.high_seed_id, s.low_seed_id, s.best_of,
+                h.abbr ha, h.city hc, h.name hn, h.primary_color hcor, h.logo_url hlogo,
+                a.abbr aa, a.city ac, a.name an, a.primary_color acor, a.logo_url alogo
+           FROM playoff_series s
+           JOIN teams h ON h.id = s.high_seed_id
+           JOIN teams a ON a.id = s.low_seed_id
+          ORDER BY s.round, s.conf, s.high_seed")->fetchAll();
+
+    $porRodada = [];
+    foreach ($series as $s) {
+        $s['eu'] = in_array($gmId, [(int) $s['high_seed_id'], (int) $s['low_seed_id']], true);
+        $porRodada[(int) $s['round']][] = $s;
+    }
+
+    /* O PLAY-IN NÃO É SÉRIE. São jogos avulsos marcados com stage 'playin';
+       enquanto ele rola, `playoff_series` está vazia e não há chaveamento pra
+       mostrar. Aqui eles entram como "rodada 0", pra tela ter o que dizer. */
+    $playin = [];
+    if (in_array($fase, ['playin', 'playoffs', 'offseason'], true)) {
+        $st = $db->query(
+            "SELECT g.id, g.played, g.home_pts, g.away_pts, g.home_id, g.away_id,
+                    h.abbr ha, h.city hc, h.name hn, h.logo_url hlogo, h.primary_color hcor,
+                    a.abbr aa, a.city ac, a.name an, a.logo_url alogo, a.primary_color acor
+               FROM games g
+               JOIN teams h ON h.id = g.home_id
+               JOIN teams a ON a.id = g.away_id
+              WHERE g.stage = 'playin' ORDER BY g.id");
+        $playin = $st->fetchAll();
+    }
+
+    return ['playin' => $playin, 'rodadas' => $porRodada, 'fase' => $fase];
+}
+
 /** Nome cheio de um time, sem o espaço sobrando de quem não tem cidade. */
 function temporadaNome(?array $t, string $prefixo = ''): string
 {
