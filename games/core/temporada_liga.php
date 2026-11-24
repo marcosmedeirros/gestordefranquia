@@ -208,7 +208,23 @@ class TemporadaLiga
         ];
     }
 
-    /** Os times de uma liga, pra tela de escolha (sem montar save nenhum). */
+    /**
+     * Os times de uma liga, pra tela de escolha (sem montar save nenhum).
+     *
+     * ── A MÉDIA É DOS OITO PRIMEIROS, E ISSO IMPORTA ─────────────────
+     * A primeira versão ordenava pela média do elenco INTEIRO, e ela
+     * discordava do jogo: o Cincinnati aparecia como o pior elenco da ELITE
+     * na escolha ("título paga o máximo") e, entrando, saía com força 52 e
+     * multiplicador 1,72x. Os dois números estavam certos e mediam coisas
+     * diferentes — ele tem banco fraco e titulares medianos.
+     *
+     * Quem decide o preço é o TemporadaPremios, e ele conta os oito
+     * primeiros, que são os que o motor põe em quadra. Então a escolha passa
+     * a contar os mesmos oito. Promessa feita na tela é promessa paga no fim.
+     *
+     * Os oito saem em PHP de propósito: `LIMIT` por grupo pede função de
+     * janela, e a conta aqui é sobre quatrocentos e poucos jogadores.
+     */
     public static function timesDaLiga(string $liga): array
     {
         $liga = strtoupper(trim($liga));
@@ -217,18 +233,37 @@ class TemporadaLiga
         $fba = self::fbaConn();
         $st = $fba->prepare(
             "SELECT t.id, t.city, t.name, t.conference, t.photo_url,
-                    t.public_primary_color AS cor,
-                    COUNT(p.id) AS jogadores,
-                    ROUND(AVG(p.ovr), 1) AS ovr_medio,
-                    MAX(p.ovr) AS teto
-               FROM teams t
-               LEFT JOIN players p ON p.team_id = t.id
-              WHERE t.league = ?
-              GROUP BY t.id, t.city, t.name, t.conference, t.photo_url, t.public_primary_color
-              ORDER BY ovr_medio DESC"
+                    t.public_primary_color AS cor
+               FROM teams t WHERE t.league = ? ORDER BY t.id"
         );
         $st->execute([$liga]);
-        return $st->fetchAll(PDO::FETCH_ASSOC);
+        $times = $st->fetchAll(PDO::FETCH_ASSOC);
+        if (!$times) return [];
+
+        $ids = array_column($times, 'id');
+        $marcas = implode(',', array_fill(0, count($ids), '?'));
+        $sp = $fba->prepare("SELECT team_id, ovr FROM players
+                              WHERE team_id IN ($marcas) ORDER BY team_id, ovr DESC");
+        $sp->execute($ids);
+
+        $topo = [];
+        $total = [];
+        foreach ($sp->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            $t = (int) $p['team_id'];
+            $total[$t] = ($total[$t] ?? 0) + 1;
+            if (count($topo[$t] ?? []) < 8) $topo[$t][] = (int) $p['ovr'];
+        }
+
+        foreach ($times as &$t) {
+            $oito = $topo[(int) $t['id']] ?? [];
+            $t['jogadores'] = $total[(int) $t['id']] ?? 0;
+            $t['ovr_medio'] = $oito ? round(array_sum($oito) / count($oito), 1) : 0.0;
+            $t['teto']      = $oito ? max($oito) : 0;
+        }
+        unset($t);
+
+        usort($times, fn($a, $b) => $b['ovr_medio'] <=> $a['ovr_medio']);
+        return $times;
     }
 
     // ─────────────────────────────────────────────────────────────────────
