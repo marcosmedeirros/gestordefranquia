@@ -453,7 +453,14 @@ function sim_nav(): array
     $phase = League::phase();
     $gm = League::gmTeam();
     $unread = $gm ? League::inboxUnread() : 0;
-    $capC = $gm ? Cap::gmCompliance() : null;
+
+    /* MINHA TEMPORADA NÃO TEM MERCADO.
+       Trocas, agentes livres, folha, loteria e draft são o jogo de dinastia da
+       NBA. Aqui o elenco é o que a FBA tem hoje e o jogo é levá-lo até o
+       título — deixar essas telas no menu seria oferecer uma gestão que o modo
+       não tem, e cada uma delas assume uma temporada seguinte que não existe. */
+    $ehFba = Database::meta('modo') === 'fba';
+    $capC = ($gm && !$ehFba) ? Cap::gmCompliance() : null;
 
     $inicio = ['home' => 'Central', 'inbox' => 'Caixa de entrada'];
     if ($phase === 'preseason') $inicio['preseason'] = 'Pré-temporada';
@@ -472,7 +479,7 @@ function sim_nav(): array
     if ($phase === 'offseason') $liga['awards'] = 'Prêmios';
     $liga += ['leaders' => 'Líderes', 'power' => 'Power ranking', 'teams' => 'Times', 'history' => 'História', 'search' => 'Busca'];
 
-    return [
+    $nav = [
         'inicio'  => ['label' => 'Início',  'icon' => 'house-door-fill',  'items' => $inicio,  'badge' => $unread],
         'elenco'  => ['label' => 'Elenco',  'icon' => 'people-fill',      'items' => $elenco],
         'mercado' => ['label' => 'Mercado', 'icon' => 'arrow-left-right', 'items' => $mercado,
@@ -480,6 +487,17 @@ function sim_nav(): array
         'liga'    => ['label' => 'Liga',    'icon' => 'trophy-fill',      'items' => $liga],
         'mais'    => ['label' => 'Mais',    'icon' => 'grid-fill',        'items' => ['saves' => 'Meus saves', 'gmselect' => 'Franquias']],
     ];
+
+    if ($ehFba) {
+        unset($nav['mercado']);
+        // "Franquias" troca a franquia no meio da dinastia — no modo FBA o
+        // time é a escolha que define a partida inteira e o prêmio que ela
+        // paga. Trocar de time no meio seria trocar de aposta depois do giro.
+        $nav['mais']['items'] = ['saves' => 'Meus saves'];
+        $nav['elenco']['items'] = ['lineup' => 'Elenco'];
+    }
+
+    return $nav;
 }
 
 function sim_section_of(string $page, array $nav): string

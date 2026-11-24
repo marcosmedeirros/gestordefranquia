@@ -298,6 +298,43 @@ render_header('Central');
     </section>
     <?php endif; ?>
 
+    <?php /* ── O QUE ESTÁ EM JOGO, no modo FBA ────────────────────────
+             A escolha do time já aconteceu e não dá pra desfazer, então o
+             valor de cada etapa precisa estar visível o tempo todo: é o que
+             transforma "perdi na primeira rodada" em "deixei 1.250 na mesa". */
+       require_once dirname(__DIR__) . '/FbaPremios.php';
+       if (FbaPremios::ativo()):
+         $conq = FbaPremios::conquistadas();
+         $pagas = FbaPremios::pagas();
+    ?>
+    <section class="panel">
+      <?= panel_head('Moedas da temporada', [
+            'icon' => 'coin',
+            'meta' => FbaPremios::multiplicador() . 'x — ' . (int) Database::meta('fba_rank')
+                      . 'º elenco de ' . (int) Database::meta('fba_times'),
+          ]) ?>
+      <table class="tbl">
+        <tbody>
+        <?php foreach (FbaPremios::tabela() as $k => $i):
+          $feito = !empty($conq[$i['rodada']]);
+          $pago  = in_array($k, $pagas, true);
+        ?>
+          <tr<?= $feito ? '' : ' class="dim"' ?>>
+            <td><?= $feito ? bi('check-circle-fill') : bi('circle') ?> <?= e($i['rotulo']) ?></td>
+            <td style="text-align:right"><b><?= number_format($i['moedas'], 0, ',', '.') ?></b>
+              <?= $pago ? '<small class="dim"> pago</small>' : '' ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+      <p class="dim">
+        Quanto mais fraco o elenco, mais cada etapa paga. O seu está em
+        <?= (int) Database::meta('fba_forca') ?>/100 de força, então tudo aqui vale
+        <?= FbaPremios::multiplicador() ?>x o valor base.
+      </p>
+    </section>
+    <?php endif; ?>
+
     <?php if ($race): ?>
     <section class="panel">
       <?= panel_head('Corrida pelos prêmios', ['icon' => 'award-fill']) ?>
