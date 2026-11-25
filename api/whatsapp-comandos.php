@@ -2908,8 +2908,7 @@ function wcPowerDoTime(PDO $pdo, array $time): string
        "acho que nem aparecer, deve ser algo que fique mais oculto em si").
        Ele entra na nota e fica fora da lista: a campanha passada não é
        atributo do time, é um ajuste fino, e dar a ela uma barra do mesmo
-       tamanho das outras faria o GM discutir o 7% em vez do elenco. O rodapé
-       continua dizendo que ele existe — oculto não é escondido. */
+       tamanho das outras faria o GM discutir o 7% em vez do elenco. */
     $rotulos = [
         'elenco'    => 'Elenco',
         'astros'    => 'Astros',
@@ -2933,12 +2932,9 @@ function wcPowerDoTime(PDO $pdo, array $time): string
             wcBarraDeNota((float)$c['nota']), $rotulo, (int)round($c['nota']), $c['txt'], $melhores);
     }
 
-    $txt .= "\n_A nota é a previsão de onde o time termina. Cada jogador vale o"
-          . " OVR corrigido pelas letras na posição dele e pelo que produziu na"
-          . " última temporada; o banco quase não pesa. Também entram com peso"
-          . " pequeno a força da divisão (3%) e, pros oito que chegaram às semis"
-          . " no último playoff, o quanto foram longe (7%). A pontuação do ciclo"
-          . " e as temporadas anteriores não entram._";
+    /* Sem rodapé explicando a conta (pedido do Marcos, 25/11/2026). A ficha é
+       pra ser lida de relance no celular, e seis linhas de metodologia embaixo
+       de quatro barras invertem o peso da mensagem. @see wcNotaDePower */
     return rtrim($txt);
 }
 
