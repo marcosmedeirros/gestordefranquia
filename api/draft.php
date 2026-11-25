@@ -2015,6 +2015,46 @@ if ($method === 'POST') {
              * não pode é revelar por uma urna que a tela já não descreve.
              */
             if (!$apenasPreview && !$simulacao) {
+                /* SEM URNA FECHADA, NÃO SE SORTEIA.
+                 *
+                 * A urna fecha quando a classificação da temporada é salva.
+                 * Se ela não foi salva, não há urna — e até 25/11/2026 o
+                 * sorteio não reclamava: a busca por "a última classificação
+                 * lançada desta sprint" simplesmente caía na temporada
+                 * ANTERIOR e montava um quadro inteiro em cima dela.
+                 *
+                 * Foi o que aconteceu na ELITE naquele dia. O sorteio rodou
+                 * antes de a campanha da temporada 14 ser lançada, pegou a da
+                 * 13, e a cerimônia foi ao ar com o New Orleans Voodoos — 1º
+                 * do Oeste — sorteado na loteria, e o México City Catrinas,
+                 * pior time da liga, sentado na pick 27. As duas metades do
+                 * quadro, loteria e cauda, descreviam o ano passado.
+                 *
+                 * O erro não dava sinal nenhum: a ordem saía coerente, com os
+                 * 16 times certos PARA AQUELA temporada. Só quem conhecia a
+                 * campanha percebia.
+                 *
+                 * A trava das bolinhas, logo abaixo, não pegava isto: ela
+                 * compara com a urna gravada, e aqui o problema é não existir
+                 * urna nenhuma. Este é o ponto cego dela.
+                 *
+                 * Prévia e simulação seguem livres — é lá que se ensaia antes
+                 * de a campanha ser lançada, e nada do que sai delas vale.
+                 */
+                if (loteriaOrdemTravada($pdo, (int)$lotterySession['season_id']) === null) {
+                    $mesma = $standingsSeasonNumber === (int)$upcomingSeasonNumber;
+                    echo json_encode(['success' => false,
+                        'error' => 'Loteria não sorteada: a classificação da temporada nº ' . (int)$upcomingSeasonNumber
+                                 . ' ainda não foi salva, então a urna desta loteria nunca foi fechada.'
+                                 . ($mesma
+                                     ? ' '
+                                     : ' Sem ela o sorteio cairia na classificação da temporada nº '
+                                       . $standingsSeasonNumber . ', que é a da campanha anterior — a loteria '
+                                       . 'sairia inteira do ano passado, loteria e cauda. ')
+                                 . 'Abra o card Pontuação, salve a classificação desta temporada, e sorteie.']);
+                    exit;
+                }
+
                 $divergentes = loteriaUrnaDivergente($pdo, (int)$lotterySession['season_id'], $balls);
                 if ($divergentes) {
                     $linhas = [];
@@ -2028,7 +2068,14 @@ if ($method === 'POST') {
                                  . (count($divergentes) > 6 ? '; e mais ' . (count($divergentes) - 6) : '')
                                  . '. A urna é fechada quando a classificação é salva e não muda depois — '
                                  . 'mexer em grupo agora altera só o que a tela mostra, não o sorteio. '
-                                 . 'Para valer a urna nova, refaça o salvamento da classificação.']);
+                                 /* Esta frase dizia "refaça o salvamento da classificação", e isso
+                                    NÃO funciona: a urna é gravada com INSERT IGNORE, então salvar de
+                                    novo não reabre nada e o sorteio continua bloqueado pelo mesmo
+                                    motivo. Mandar o admin repetir um passo que não faz efeito foi o
+                                    que travou a ELITE em 25/11/2026. Quem reabre a urna é o Refazer
+                                    sorteio, que guarda a ordem antiga no histórico antes. */
+                                 . 'Para valer a urna de hoje, use "Refazer sorteio" em /marcos-dev.php — '
+                                 . 'salvar a classificação de novo não reabre a urna.']);
                     exit;
                 }
             }
