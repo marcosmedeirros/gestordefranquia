@@ -34,6 +34,12 @@ $pdo = db();
  * A gravação é por TIME, não pelo quadro inteiro. Mandar o mapa completo
  * faria a última tela a salvar apagar o que as outras acabaram de mover —
  * dois GMs mexendo juntos é exatamente o caso que isto precisa aguentar.
+ *
+ * O FORMATO GUARDA A ORDEM: uma lista por faixa, não um mapa time→faixa.
+ * A primeira versão guardava só em que faixa cada time estava e desenhava
+ * em ordem alfabética; quem monta quer dizer também QUEM É O PRIMEIRO da
+ * faixa, que numa tier list é metade da opinião. Quem não está em lista
+ * nenhuma está no banco.
  */
 function tlGarantir(PDO $pdo): void
 {
@@ -50,15 +56,48 @@ function tlGarantir(PDO $pdo): void
                    VALUES ('ELITE', '{}', 0, NOW())")->execute();
 }
 
+const TL_FAIXAS = ['campeao', 'briga', 'meio', 'luta', 'cai'];
+
+/**
+ * Uma lista por faixa, sempre as cinco, sempre de inteiros, sem repetido.
+ *
+ * Também converte o formato antigo (mapa time→faixa), que é o que está
+ * gravado de antes de a ordem existir: sem isto o primeiro acesso depois
+ * do deploy acharia o quadro vazio e a liga perderia o que já tinha
+ * montado.
+ */
+function tlNormalizar($bruto): array
+{
+    $saida = array_fill_keys(TL_FAIXAS, []);
+    if (!is_array($bruto)) return $saida;
+
+    $vistos = [];
+    foreach ($bruto as $chave => $valor) {
+        if (is_array($valor)) {                       // formato novo: faixa => [ids]
+            if (!in_array((string) $chave, TL_FAIXAS, true)) continue;
+            foreach ($valor as $id) {
+                $id = (int) $id;
+                if ($id > 0 && !isset($vistos[$id])) { $saida[(string) $chave][] = $id; $vistos[$id] = true; }
+            }
+        } elseif (is_string($valor) && in_array($valor, TL_FAIXAS, true)) {   // formato antigo
+            $id = (int) $chave;
+            if ($id > 0 && !isset($vistos[$id])) { $saida[$valor][] = $id; $vistos[$id] = true; }
+        }
+    }
+    return $saida;
+}
+
 function tlLer(PDO $pdo): array
 {
     tlGarantir($pdo);
     $r = $pdo->query("SELECT posicoes, versao FROM tierlist_quadro WHERE chave = 'ELITE'")->fetch(PDO::FETCH_ASSOC);
-    $p = $r ? json_decode((string) $r['posicoes'], true) : [];
-    return ['versao' => (int) ($r['versao'] ?? 0), 'posicoes' => is_array($p) ? $p : []];
+    return [
+        'versao'   => (int) ($r['versao'] ?? 0),
+        'posicoes' => tlNormalizar($r ? json_decode((string) $r['posicoes'], true) : []),
+    ];
 }
 
-$FAIXAS_IDS = ['campeao', 'briga', 'meio', 'luta', 'cai', 'banco'];
+$FAIXAS_IDS = array_merge(TL_FAIXAS, ['banco']);
 
 if (isset($_GET['api'])) {
     header('Content-Type: application/json; charset=utf-8');
@@ -79,9 +118,10 @@ if (isset($_GET['api'])) {
         }
 
         if ($acao === 'mover') {
-            $corpo = json_decode(file_get_contents('php://input') ?: '[]', true) ?: [];
-            $id    = (int) ($corpo['id'] ?? 0);
-            $faixa = (string) ($corpo['faixa'] ?? '');
+            $corpo  = json_decode(file_get_contents('php://input') ?: '[]', true) ?: [];
+            $id     = (int) ($corpo['id'] ?? 0);
+            $faixa  = (string) ($corpo['faixa'] ?? '');
+            $indice = max(0, (int) ($corpo['indice'] ?? 0));
             if ($id <= 0 || !in_array($faixa, $FAIXAS_IDS, true)) {
                 http_response_code(400);
                 echo json_encode(['erro' => 'pedido inválido']); exit;
@@ -97,10 +137,19 @@ if (isset($_GET['api'])) {
                vez, em vez de uma sobrescrever a leitura da outra. */
             $pdo->beginTransaction();
             $r = $pdo->query("SELECT posicoes, versao FROM tierlist_quadro WHERE chave = 'ELITE' FOR UPDATE")->fetch(PDO::FETCH_ASSOC);
-            $pos = json_decode((string) ($r['posicoes'] ?? '{}'), true);
-            if (!is_array($pos)) $pos = [];
-            if ($faixa === 'banco') unset($pos[(string) $id]);
-            else $pos[(string) $id] = $faixa;
+            $pos = tlNormalizar(json_decode((string) ($r['posicoes'] ?? '{}'), true));
+
+            // Sai de onde estiver — inclusive da própria faixa, que é como
+            // reordenar dentro dela funciona.
+            foreach ($pos as $f => $lista) {
+                $pos[$f] = array_values(array_filter($lista, fn($x) => (int) $x !== $id));
+            }
+            if ($faixa !== 'banco') {
+                $destino = $pos[$faixa] ?? [];
+                $indice  = min($indice, count($destino));
+                array_splice($destino, $indice, 0, [$id]);
+                $pos[$faixa] = $destino;
+            }
             $versao = (int) ($r['versao'] ?? 0) + 1;
             $pdo->prepare("UPDATE tierlist_quadro SET posicoes = ?, versao = ?, atualizado_em = NOW() WHERE chave = 'ELITE'")
                 ->execute([json_encode($pos), $versao]);
@@ -373,19 +422,39 @@ function criarChip(t){
 
 const zonas = () => Array.from(document.querySelectorAll('.zona'));
 
-/* Sempre na ordem de TIMES, nunca na ordem em que cada um largou o escudo:
-   assim o quadro é IGUAL em todas as telas. Ordem dentro da faixa seria
-   mais um dado pra sincronizar, e ninguém discute tier list por isso. */
+/* Desenha na ORDEM GUARDADA de cada faixa — é ela que diz quem é o primeiro,
+   que numa tier list é metade da opinião. Só o banco sai na ordem dos times:
+   lá é depósito, não ranking. */
 function montar(){
   zonas().forEach(z => z.innerHTML = '');
-  const banco = document.getElementById('banco');
-  TIMES.forEach(t => {
-    const faixa = POSICOES[t.id] || 'banco';
-    const alvo = document.querySelector('.zona[data-faixa="' + faixa + '"]') || banco;
-    alvo.appendChild(criarChip(t));
+  const colocados = new Set();
+  Object.keys(POSICOES).forEach(faixa => {
+    const z = document.querySelector('.zona[data-faixa="' + faixa + '"]');
+    if (!z) return;
+    (POSICOES[faixa] || []).forEach(id => {
+      const t = porId[id];
+      if (!t) return;
+      z.appendChild(criarChip(t));
+      colocados.add(String(id));
+    });
   });
+  const banco = document.getElementById('banco');
+  TIMES.forEach(t => { if (!colocados.has(String(t.id))) banco.appendChild(criarChip(t)); });
 }
 montar();
+
+/* ONDE O ESCUDO FOI SOLTO, dentro da faixa.
+   Compara com o meio horizontal de cada escudo já lá: passou do meio,
+   entra depois dele. É o que faz "soltar entre o 2º e o 3º" virar
+   exatamente isso, em vez de cair sempre no fim. */
+function indiceNaZona(zona, x, y, ignorar){
+  const irmaos = Array.from(zona.querySelectorAll('.chip')).filter(c => c !== ignorar);
+  for (let i = 0; i < irmaos.length; i++) {
+    const r = irmaos[i].getBoundingClientRect();
+    if (y < r.bottom && x < r.left + r.width / 2) return i;
+  }
+  return irmaos.length;
+}
 
 /* ── ao vivo ───────────────────────────────────────────────
    Mover manda só o time movido. O servidor devolve o quadro inteiro já com
@@ -399,15 +468,14 @@ function piscar(){
   piscar.t = setTimeout(() => aviso.classList.remove('on'), 1200);
 }
 
-async function mover(id, faixa){
-  // Pinta na hora e conserta depois: esperar a rede pra ver o escudo sair
-  // do lugar faz o arraste parecer quebrado.
-  if (faixa === 'banco') delete POSICOES[id]; else POSICOES[id] = faixa;
+async function mover(id, faixa, indice){
+  // A tela já está pintada (o escudo foi movido no DOM antes daqui); o
+  // servidor confirma e devolve o quadro com a mexida de todo mundo.
   try {
     const r = await fetch('?api=mover', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: Number(id), faixa })
+      body: JSON.stringify({ id: Number(id), faixa, indice: indice | 0 })
     });
     const d = await r.json();
     if (d && d.posicoes) { VERSAO = d.versao; POSICOES = d.posicoes; montar(); }
@@ -488,7 +556,12 @@ document.addEventListener('pointerup', ev => {
     if (clone) clone.remove();
     clone = null;
     limparAlvo();
-    if (z) { z.appendChild(chip); mover(chip.dataset.id, z.dataset.faixa); }
+    if (z) {
+      const i = indiceNaZona(z, ev.clientX, ev.clientY, chip);
+      const irmaos = Array.from(z.querySelectorAll('.chip')).filter(c => c !== chip);
+      if (i >= irmaos.length) z.appendChild(chip); else z.insertBefore(chip, irmaos[i]);
+      mover(chip.dataset.id, z.dataset.faixa, i);
+    }
   } else {
     aoClicar(chip);
   }
@@ -519,9 +592,12 @@ document.querySelectorAll('.zona').forEach(z => {
   z.addEventListener('click', ev => {
     if (!escolhido || ev.target.closest('.chip')) return;
     const id = escolhido.dataset.id;
+    // No toque não há ponto de soltura dentro da faixa: vai pro fim, que é
+    // o que a pessoa espera de "põe esse aqui".
+    const i = Array.from(z.querySelectorAll('.chip')).filter(c => c !== escolhido).length;
     z.appendChild(escolhido);
     desmarcar();
-    mover(id, z.dataset.faixa);
+    mover(id, z.dataset.faixa, i);
   });
 });
 
