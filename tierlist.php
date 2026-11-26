@@ -20,6 +20,114 @@ require_once __DIR__ . '/backend/db.php';
 
 $pdo = db();
 
+/* ── O QUADRO É UM SÓ, E É AO VIVO ──────────────────────────────────────
+ *
+ * Começou como uma tier list por pessoa, no localStorage. Virou um quadro
+ * compartilhado: quem mexe move pra todo mundo, e quem está com a tela
+ * aberta vê mexer.
+ *
+ * Sem websocket — a Hostinger é PHP e MySQL. O caminho é o mesmo do draft:
+ * cada tela pergunta "mudou?" de tempos em tempos, e a resposta é um número
+ * de versão. Enquanto a versão não muda, a resposta é minúscula e ninguém
+ * redesenha nada.
+ *
+ * A gravação é por TIME, não pelo quadro inteiro. Mandar o mapa completo
+ * faria a última tela a salvar apagar o que as outras acabaram de mover —
+ * dois GMs mexendo juntos é exatamente o caso que isto precisa aguentar.
+ */
+function tlGarantir(PDO $pdo): void
+{
+    static $ok = false;
+    if ($ok) return;
+    $ok = true;
+    $pdo->exec("CREATE TABLE IF NOT EXISTS tierlist_quadro (
+        chave   VARCHAR(32) NOT NULL PRIMARY KEY,
+        posicoes TEXT NOT NULL,
+        versao  INT NOT NULL DEFAULT 0,
+        atualizado_em DATETIME NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->prepare("INSERT IGNORE INTO tierlist_quadro (chave, posicoes, versao, atualizado_em)
+                   VALUES ('ELITE', '{}', 0, NOW())")->execute();
+}
+
+function tlLer(PDO $pdo): array
+{
+    tlGarantir($pdo);
+    $r = $pdo->query("SELECT posicoes, versao FROM tierlist_quadro WHERE chave = 'ELITE'")->fetch(PDO::FETCH_ASSOC);
+    $p = $r ? json_decode((string) $r['posicoes'], true) : [];
+    return ['versao' => (int) ($r['versao'] ?? 0), 'posicoes' => is_array($p) ? $p : []];
+}
+
+$FAIXAS_IDS = ['campeao', 'briga', 'meio', 'luta', 'cai', 'banco'];
+
+if (isset($_GET['api'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    try {
+        tlGarantir($pdo);
+        $acao = (string) $_GET['api'];
+
+        if ($acao === 'ler') {
+            /* A tela manda a versão que já tem. Igual = nada mudou, e a
+               resposta não carrega o quadro inteiro à toa. */
+            $estado = tlLer($pdo);
+            $tenho = isset($_GET['v']) ? (int) $_GET['v'] : -1;
+            echo json_encode($tenho === $estado['versao']
+                ? ['versao' => $estado['versao'], 'igual' => true]
+                : $estado);
+            exit;
+        }
+
+        if ($acao === 'mover') {
+            $corpo = json_decode(file_get_contents('php://input') ?: '[]', true) ?: [];
+            $id    = (int) ($corpo['id'] ?? 0);
+            $faixa = (string) ($corpo['faixa'] ?? '');
+            if ($id <= 0 || !in_array($faixa, $FAIXAS_IDS, true)) {
+                http_response_code(400);
+                echo json_encode(['erro' => 'pedido inválido']); exit;
+            }
+            // O time TEM que ser da ELITE: senão a chave do quadro vira
+            // depósito de id qualquer que alguém mande pelo console.
+            $st = $pdo->prepare("SELECT 1 FROM teams WHERE id = ? AND league = 'ELITE'");
+            $st->execute([$id]);
+            if (!$st->fetchColumn()) { http_response_code(400); echo json_encode(['erro' => 'time fora da ELITE']); exit; }
+
+            /* Ler-mexer-gravar dentro de uma transação, com a linha travada:
+               duas pessoas movendo no mesmo segundo escrevem uma de cada
+               vez, em vez de uma sobrescrever a leitura da outra. */
+            $pdo->beginTransaction();
+            $r = $pdo->query("SELECT posicoes, versao FROM tierlist_quadro WHERE chave = 'ELITE' FOR UPDATE")->fetch(PDO::FETCH_ASSOC);
+            $pos = json_decode((string) ($r['posicoes'] ?? '{}'), true);
+            if (!is_array($pos)) $pos = [];
+            if ($faixa === 'banco') unset($pos[(string) $id]);
+            else $pos[(string) $id] = $faixa;
+            $versao = (int) ($r['versao'] ?? 0) + 1;
+            $pdo->prepare("UPDATE tierlist_quadro SET posicoes = ?, versao = ?, atualizado_em = NOW() WHERE chave = 'ELITE'")
+                ->execute([json_encode($pos), $versao]);
+            $pdo->commit();
+            echo json_encode(['versao' => $versao, 'posicoes' => $pos]);
+            exit;
+        }
+
+        if ($acao === 'limpar') {
+            $pdo->prepare("UPDATE tierlist_quadro SET posicoes = '{}', versao = versao + 1, atualizado_em = NOW() WHERE chave = 'ELITE'")->execute();
+            echo json_encode(tlLer($pdo));
+            exit;
+        }
+
+        http_response_code(404);
+        echo json_encode(['erro' => 'ação desconhecida']);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[tierlist] ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['erro' => 'falhou']);
+    }
+    exit;
+}
+
+$estadoInicial = tlLer($pdo);
+
 /* Os 32 da ELITE. */
 $times = $pdo->query("SELECT id, city, name, photo_url, public_primary_color AS cor
                         FROM teams WHERE league = 'ELITE'
@@ -37,7 +145,7 @@ $ranking = $pdo->query("SELECT id, city, name, photo_url, ranking_points
    São 32 times; uma consulta por clique seria 32 idas ao servidor pra
    mostrar cinco nomes que já estão no banco. Vem junto com a página. */
 $titulares = [];
-$st = $pdo->query("SELECT p.team_id, p.name, p.ovr, p.position, p.role
+$st = $pdo->query("SELECT p.team_id, p.name, p.ovr, p.age, p.position, p.role
                      FROM players p JOIN teams t ON t.id = p.team_id
                     WHERE t.league = 'ELITE'
                  ORDER BY p.team_id,
@@ -54,6 +162,7 @@ foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) {
         $titulares[$tid]['lista'][] = [
             'n' => $p['name'],
             'o' => (int) $p['ovr'],
+            'i' => (int) $p['age'],
             'p' => strtoupper(trim((string) $p['position'])),
         ];
     }
@@ -172,7 +281,10 @@ a{color:var(--roxo)}
 .jog{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--linha);font-size:14px}
 .jog .p{width:30px;font-size:10px;font-weight:800;color:var(--roxo);flex:0 0 30px}
 .jog .n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.jog .o{font-weight:800;font-variant-numeric:tabular-nums}
+.jog .idade{font-size:11px;color:var(--txt2);font-variant-numeric:tabular-nums;flex:0 0 auto}
+.jog .o{font-weight:800;font-variant-numeric:tabular-nums;min-width:26px;text-align:right}
+#aviso{opacity:0;transition:opacity .25s;font-size:12px;color:var(--roxo);font-weight:600;flex:0 0 auto}
+#aviso.on{opacity:1}
 .vazio{color:var(--txt2);font-size:13px;padding:8px 0}
 
 @media (max-width:900px){
@@ -191,7 +303,8 @@ a{color:var(--roxo)}
 
 <div class="topo">
   <h1>Tier List da ELITE</h1>
-  <div class="sub">Arraste os escudos. No celular, toque num escudo e depois na faixa. Clique num escudo já posicionado pra ver o quinteto.</div>
+  <div class="sub">Quadro único da liga — o que você move, todo mundo vê. Arraste, ou toque no escudo e depois na faixa. Toque de novo pra ver o quinteto.</div>
+  <span id="aviso">alguém mexeu</span>
   <button class="btn" id="limpar">Limpar</button>
   <button class="btn primario" id="baixar">Baixar imagem</button>
 </div>
@@ -240,9 +353,11 @@ a{color:var(--roxo)}
 
 <script>
 const TIMES = <?= json_encode($dados, JSON_UNESCAPED_UNICODE) ?>;
-const CHAVE = 'fba_tierlist_elite_v1';
 const porId = {};
 TIMES.forEach(t => porId[t.id] = t);
+
+let VERSAO = <?= (int) $estadoInicial['versao'] ?>;
+let POSICOES = <?= json_encode((object) $estadoInicial['posicoes']) ?>;
 
 /* ── monta os escudos ─────────────────────────────────────── */
 function criarChip(t){
@@ -258,30 +373,66 @@ function criarChip(t){
 
 const zonas = () => Array.from(document.querySelectorAll('.zona'));
 
-function montar(estado){
+/* Sempre na ordem de TIMES, nunca na ordem em que cada um largou o escudo:
+   assim o quadro é IGUAL em todas as telas. Ordem dentro da faixa seria
+   mais um dado pra sincronizar, e ninguém discute tier list por isso. */
+function montar(){
   zonas().forEach(z => z.innerHTML = '');
   const banco = document.getElementById('banco');
-  const postos = {};
-  Object.entries(estado || {}).forEach(([id, faixa]) => postos[id] = faixa);
   TIMES.forEach(t => {
-    const faixa = postos[t.id] || 'banco';
+    const faixa = POSICOES[t.id] || 'banco';
     const alvo = document.querySelector('.zona[data-faixa="' + faixa + '"]') || banco;
     alvo.appendChild(criarChip(t));
   });
 }
+montar();
 
-function salvar(){
-  const e = {};
-  zonas().forEach(z => {
-    if (z.dataset.faixa === 'banco') return;
-    z.querySelectorAll('.chip').forEach(c => e[c.dataset.id] = z.dataset.faixa);
-  });
-  try { localStorage.setItem(CHAVE, JSON.stringify(e)); } catch (err) {}
+/* ── ao vivo ───────────────────────────────────────────────
+   Mover manda só o time movido. O servidor devolve o quadro inteiro já com
+   a mexida de todo mundo, então duas pessoas mexendo juntas convergem
+   sozinhas. */
+const aviso = document.getElementById('aviso');
+function piscar(){
+  if (!aviso) return;
+  aviso.classList.add('on');
+  clearTimeout(piscar.t);
+  piscar.t = setTimeout(() => aviso.classList.remove('on'), 1200);
 }
 
-let inicial = {};
-try { inicial = JSON.parse(localStorage.getItem(CHAVE) || '{}'); } catch (err) {}
-montar(inicial);
+async function mover(id, faixa){
+  // Pinta na hora e conserta depois: esperar a rede pra ver o escudo sair
+  // do lugar faz o arraste parecer quebrado.
+  if (faixa === 'banco') delete POSICOES[id]; else POSICOES[id] = faixa;
+  try {
+    const r = await fetch('?api=mover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: Number(id), faixa })
+    });
+    const d = await r.json();
+    if (d && d.posicoes) { VERSAO = d.versao; POSICOES = d.posicoes; montar(); }
+  } catch (e) { /* sem rede: fica o que está na tela, o poll conserta */ }
+}
+
+async function sincronizar(){
+  if (arrastando) return;              // ninguém tem o escudo puxado da mão
+  try {
+    const r = await fetch('?api=ler&v=' + VERSAO, { cache: 'no-store' });
+    const d = await r.json();
+    if (d && !d.igual && d.posicoes) {
+      VERSAO = d.versao; POSICOES = d.posicoes;
+      const marcado = escolhido ? escolhido.dataset.id : null;
+      montar();
+      if (marcado) {
+        const c = document.querySelector('.chip[data-id="' + marcado + '"]');
+        if (c) { escolhido = c; c.classList.add('escolhido'); }
+      }
+      piscar();
+    }
+  } catch (e) {}
+}
+setInterval(sincronizar, 1500);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sincronizar(); });
 
 /* ── arrastar: um só caminho pra mouse e dedo ──────────────
    Pointer Events cobrem os dois. O clone voa junto do dedo e o original
@@ -333,12 +484,11 @@ document.addEventListener('pointerup', ev => {
   const chip = arrastando;
   if (saiuDoLugar) {
     const z = zonaSob(ev.clientX, ev.clientY);
-    if (z) z.appendChild(chip);
     chip.classList.remove('fantasma');
     if (clone) clone.remove();
     clone = null;
     limparAlvo();
-    salvar();
+    if (z) { z.appendChild(chip); mover(chip.dataset.id, z.dataset.faixa); }
   } else {
     aoClicar(chip);
   }
@@ -368,9 +518,10 @@ function desmarcar(){
 document.querySelectorAll('.zona').forEach(z => {
   z.addEventListener('click', ev => {
     if (!escolhido || ev.target.closest('.chip')) return;
+    const id = escolhido.dataset.id;
     z.appendChild(escolhido);
     desmarcar();
-    salvar();
+    mover(id, z.dataset.faixa);
   });
 });
 
@@ -386,6 +537,7 @@ function abrirQuinteto(id){
   document.getElementById('mLista').innerHTML = t.q.length
     ? t.q.map(j => '<div class="jog"><span class="p">' + (j.p || '--') + '</span>'
         + '<span class="n">' + j.n.replace(/[<>&]/g, '') + '</span>'
+        + '<span class="idade">' + (j.i ? j.i + ' anos' : '') + '</span>'
         + '<span class="o">' + j.o + '</span></div>').join('')
     : '<div class="vazio">Este time ainda não tem elenco cadastrado.</div>';
   fundo.classList.add('on');
@@ -395,11 +547,15 @@ fundo.onclick = ev => { if (ev.target === fundo) fundo.classList.remove('on'); }
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape') fundo.classList.remove('on'); });
 
 /* ── limpar ───────────────────────────────────────────────── */
-document.getElementById('limpar').onclick = () => {
-  if (!confirm('Tirar todos os times das faixas?')) return;
-  try { localStorage.removeItem(CHAVE); } catch (e) {}
+document.getElementById('limpar').onclick = async () => {
+  // O quadro é de todo mundo, então limpar apaga o que a liga montou. Dizer
+  // isso no aviso é o que separa um clique curioso de um estrago.
+  if (!confirm('Isso limpa o quadro PARA TODO MUNDO. Continuar?')) return;
   desmarcar();
-  montar({});
+  try {
+    const d = await (await fetch('?api=limpar')).json();
+    if (d && d.posicoes) { VERSAO = d.versao; POSICOES = d.posicoes; montar(); }
+  } catch (e) {}
 };
 
 /* ── baixar a imagem ──────────────────────────────────────
