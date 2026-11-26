@@ -25,27 +25,13 @@ $times = $pdo->query("SELECT id, city, name, photo_url, public_primary_color AS 
                         FROM teams WHERE league = 'ELITE'
                     ORDER BY city, name")->fetchAll(PDO::FETCH_ASSOC);
 
-/* A classificação mais recente lançada da ELITE. A tier list é sobre o
-   momento da liga, então vale a última campanha que existe — não a de uma
-   sprint encerrada. */
-$seasonId = (int) $pdo->query("
-    SELECT s.id FROM seasons s
-     WHERE s.league = 'ELITE'
-       AND EXISTS (SELECT 1 FROM season_standings ss WHERE ss.season_id = s.id)
-  ORDER BY s.season_number DESC, s.id DESC LIMIT 1")->fetchColumn();
-
-$tabela = ['LESTE' => [], 'OESTE' => []];
-if ($seasonId) {
-    $st = $pdo->prepare("SELECT ss.position, COALESCE(ss.conference, t.conference) AS conf,
-                                t.id, t.city, t.name, t.photo_url
-                           FROM season_standings ss JOIN teams t ON t.id = ss.team_id
-                          WHERE ss.season_id = ? ORDER BY conf, ss.position");
-    $st->execute([$seasonId]);
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $c = strtoupper((string) $r['conf']);
-        if (isset($tabela[$c])) $tabela[$c][] = $r;
-    }
-}
+/* O RANKING DA LIGA, que é a régua que a pessoa usa pra decidir.
+   É `teams.ranking_points` — o mesmo número do /ranking e o que a liga
+   discute. A tabela `team_ranking_points`, por temporada, NÃO serve aqui:
+   ela fica zerada até a temporada fechar. @see backend/duvida_dados.php */
+$ranking = $pdo->query("SELECT id, city, name, photo_url, ranking_points
+                          FROM teams WHERE league = 'ELITE'
+                      ORDER BY ranking_points DESC, name ASC")->fetchAll(PDO::FETCH_ASSOC);
 
 /* O QUINTETO DE CADA TIME, tudo de uma vez.
    São 32 times; uma consulta por clique seria 32 idas ao servidor pra
@@ -171,7 +157,8 @@ a{color:var(--roxo)}
 .linha{display:flex;align-items:center;gap:7px;padding:3px 0;font-size:12px}
 .linha .pos{width:19px;text-align:right;color:var(--txt2);font-variant-numeric:tabular-nums;flex:0 0 19px}
 .linha img{width:19px;height:19px;object-fit:contain;flex:0 0 19px}
-.linha span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.linha span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.linha .pts{color:var(--roxo);font-variant-numeric:tabular-nums;font-size:11px;flex:0 0 auto}
 .corte{border-top:1px dashed #3a3a4d;margin:5px 0 4px;position:relative}
 .corte i{position:absolute;right:0;top:-8px;background:var(--card);padding:0 5px;font-size:9px;font-style:normal;color:var(--txt2);letter-spacing:.5px}
 
@@ -227,24 +214,19 @@ a{color:var(--roxo)}
   </div>
 
   <aside class="lateral">
-    <h2>Classificação atual</h2>
-    <?php foreach (['LESTE', 'OESTE'] as $conf): if (!$tabela[$conf]) continue; ?>
+    <h2>Ranking da ELITE</h2>
     <div class="conf">
-      <b><?= $conf ?></b>
-      <?php foreach ($tabela[$conf] as $i => $r): ?>
-        <?php if ($i === 8): ?><div class="corte"><i>FORA DOS PLAYOFFS</i></div><?php endif; ?>
+      <?php foreach ($ranking as $i => $r): ?>
         <div class="linha">
-          <span class="pos"><?= (int) $r['position'] ?></span>
+          <span class="pos"><?= $i + 1 ?></span>
           <?php $e = tlEscudo($r['photo_url'], 48); ?>
           <?php if ($e): ?><img src="<?= htmlspecialchars($e) ?>" alt="" loading="lazy"><?php else: ?><span class="pos"></span><?php endif; ?>
           <span><?= htmlspecialchars(trim($r['city'] . ' ' . $r['name'])) ?></span>
+          <b class="pts"><?= (int) $r['ranking_points'] ?></b>
         </div>
       <?php endforeach; ?>
     </div>
-    <?php endforeach; ?>
-    <?php if (!$tabela['LESTE'] && !$tabela['OESTE']): ?>
-      <div class="vazio">Sem classificação lançada.</div>
-    <?php endif; ?>
+    <?php if (!$ranking): ?><div class="vazio">Ranking vazio.</div><?php endif; ?>
   </aside>
 </div>
 
