@@ -319,9 +319,14 @@ const PADRAO = {
   v: 3,
   faixas: { campeao: [], briga: [], meio: [], luta: [], cai: [] }
 };
-let E;
-try { E = Object.assign({}, PADRAO, JSON.parse(localStorage.getItem(CHAVE) || '{}')); }
-catch (err) { E = Object.assign({}, PADRAO); }
+/* O QUE ESTAVA GRAVADO, ANTES DE MISTURAR COM O PADRÃO.
+   Misturar primeiro e olhar depois não funciona: o padrão PREENCHE o campo
+   que falta, então um estado antigo sem `v` saía do Object.assign já com
+   v:3 e a limpeza abaixo nunca rodava. Quem decide se é estado velho é o
+   que veio do disco, não o resultado da mistura. */
+let bruto = {};
+try { bruto = JSON.parse(localStorage.getItem(CHAVE) || '{}') || {}; } catch (err) { bruto = {}; }
+let E = Object.assign({}, PADRAO, bruto);
 if (!E.faixas || typeof E.faixas !== 'object') E.faixas = Object.assign({}, PADRAO.faixas);
 if (!Array.isArray(E.ligas) || !E.ligas.length) E.ligas = ['ELITE'];
 
@@ -335,7 +340,7 @@ if (!Array.isArray(E.ligas) || !E.ligas.length) E.ligas = ['ELITE'];
    Então apaga os nomes uma vez só e segue. A montagem, as ligas e o tema
    escrito ficam — eles são escolha de verdade. Daqui em diante só o que
    for diferente do padrão é guardado, e esta limpeza não precisa voltar. */
-if (!E.v || E.v < 3) { E.nomes = {}; E.v = 3; }
+if (!bruto.v || bruto.v < 3) { E.nomes = {}; E.v = 3; }
 
 function guardar(){
   const f = {};
