@@ -186,6 +186,7 @@ body{
   border-radius:999px;padding:6px 15px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.6px;
 }
 .liga.on{background:var(--roxo);border-color:var(--roxo);color:#fff}
+.ligas .divisor{width:1px;align-self:stretch;background:var(--linha);margin:2px 7px}
 
 .palco{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
 
@@ -293,7 +294,6 @@ body{
 <div class="topo">
   <h1 id="titulo" contenteditable="true" spellcheck="false" data-vazio="Coloque seu tema aqui"></h1>
   <span class="lapis">✎ editável</span>
-  <button class="btn" id="modoNome">Mostrar GMs</button>
   <button class="btn" id="verRanking">Esconder ranking</button>
   <button class="btn" id="limpar">Limpar</button>
   <button class="btn" id="copiar">Copiar imagem</button>
@@ -305,6 +305,14 @@ body{
   <?php foreach ($LIGAS as $lg): ?>
     <button class="liga<?= $lg === 'ELITE' ? ' on' : '' ?>" data-liga="<?= $lg ?>"><?= $lg ?></button>
   <?php endforeach; ?>
+
+  <?php /* Fica aqui, e não entre os botões de ação do topo, porque é da
+           mesma natureza das ligas: escolhe O QUE entra no quadro, não o
+           que fazer com ele. Lá em cima virava mais um botão num monte. */ ?>
+  <span class="divisor"></span>
+  <span class="rot">Mostrar</span>
+  <button class="liga on" data-modo="time">Times</button>
+  <button class="liga" data-modo="gm">GMs</button>
 </div>
 
 <div class="palco" id="palco">
@@ -521,21 +529,23 @@ aplicarRanking();
    A mesma tier list responde duas perguntas diferentes: "que time é bom?"
    e "que GM é bom?". Trocar o rótulo é o bastante — os escudos continuam
    sendo a cara de cada um. */
-const botaoModo = document.getElementById('modoNome');
 function aplicarModo(){
-  botaoModo.textContent = E.modo === 'gm' ? 'Mostrar times' : 'Mostrar GMs';
-}
-botaoModo.onclick = () => {
-  E.modo = E.modo === 'gm' ? 'time' : 'gm';
-  aplicarModo();
-  // Só o texto muda; a montagem fica onde está.
+  document.querySelectorAll('[data-modo]').forEach(b => b.classList.toggle('on', b.dataset.modo === E.modo));
+  // Só o texto do card muda; a montagem fica onde está.
   document.querySelectorAll('.chip').forEach(c => {
     const t = porId[c.dataset.id];
     const n = c.querySelector('.nome');
     if (t && n) n.textContent = rotuloDe(t);
   });
-  guardar();
-};
+}
+document.querySelectorAll('[data-modo]').forEach(b => {
+  b.onclick = () => {
+    if (E.modo === b.dataset.modo) return;
+    E.modo = b.dataset.modo;
+    aplicarModo();
+    guardar();
+  };
+});
 aplicarModo();
 
 montar();
