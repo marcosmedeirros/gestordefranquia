@@ -252,7 +252,7 @@ body{
 
 <div class="topo">
   <h1 id="titulo" contenteditable="true" spellcheck="false" data-vazio="Coloque seu tema aqui"></h1>
-  <span class="lapis">✎ o título e as letras S/A/B/C/F são editáveis — clique e escreva</span>
+  <span class="lapis">✎ editável</span>
   <button class="btn" id="verRanking">Esconder ranking</button>
   <button class="btn" id="limpar">Limpar</button>
   <button class="btn" id="copiar">Copiar imagem</button>
@@ -316,6 +316,7 @@ const PADRAO = {
   // Escondido de saída: o ranking é consulta, o quadro é o que a pessoa
   // veio fazer — e ele não entra no print.
   ranking: false,
+  v: 3,
   faixas: { campeao: [], briga: [], meio: [], luta: [], cai: [] }
 };
 let E;
@@ -323,6 +324,18 @@ try { E = Object.assign({}, PADRAO, JSON.parse(localStorage.getItem(CHAVE) || '{
 catch (err) { E = Object.assign({}, PADRAO); }
 if (!E.faixas || typeof E.faixas !== 'object') E.faixas = Object.assign({}, PADRAO.faixas);
 if (!Array.isArray(E.ligas) || !E.ligas.length) E.ligas = ['ELITE'];
+
+/* LIMPEZA ÚNICA DOS NOMES VELHOS.
+   Até a v2 a página gravava o nome de TODA faixa, padrão incluído. Quem
+   abriu antes da troca pra S/A/B/C/F carrega CAMPEÃO, BRIGA PELO TÍTULO e
+   companhia guardados como se tivesse escolhido — e nunca mais veria as
+   letras. Comparar com a lista velha não bastava: basta um O a mais
+   digitado sem querer pra o nome não bater com nada.
+
+   Então apaga os nomes uma vez só e segue. A montagem, as ligas e o tema
+   escrito ficam — eles são escolha de verdade. Daqui em diante só o que
+   for diferente do padrão é guardado, e esta limpeza não precisa voltar. */
+if (!E.v || E.v < 3) { E.nomes = {}; E.v = 3; }
 
 function guardar(){
   const f = {};
@@ -332,8 +345,17 @@ function guardar(){
   });
   E.faixas = f;
   E.titulo = document.getElementById('titulo').textContent.trim();
+  /* SÓ GUARDA O QUE FOI TROCADO.
+     Guardava o nome de toda faixa, inclusive o padrão — e aí o padrão
+     virava escolha do usuário: quando as faixas passaram de CAMPEÃO/BRIGA
+     PELO TÍTULO/... para S/A/B/C/F, quem já tinha aberto a página uma vez
+     continuou vendo os nomes velhos pra sempre, sem nunca ter escolhido
+     nada. Padrão não é preferência. */
   const nomes = {};
-  document.querySelectorAll('[data-faixa-nome]').forEach(r => nomes[r.dataset.faixaNome] = r.textContent.trim());
+  document.querySelectorAll('[data-faixa-nome]').forEach(r => {
+    const txt = r.textContent.trim();
+    if (txt && txt !== r.dataset.padrao) nomes[r.dataset.faixaNome] = txt;
+  });
   E.nomes = nomes;
   try { localStorage.setItem(CHAVE, JSON.stringify(E)); } catch (err) {}
 }
