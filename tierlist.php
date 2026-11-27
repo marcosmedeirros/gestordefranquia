@@ -94,13 +94,20 @@ foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) {
     }
 }
 
-/** Miniatura pelo thumbnailer: há escudo de 7 MB na pasta. */
-function tlEscudo(?string $url, int $px = 128): string
+/**
+ * O escudo SEMPRE pelo nosso domínio.
+ *
+ * Apontava direto pro `photo_url`, e os 30 times da ROOKIE moram no
+ * cdn.nba.com — imagem de outro domínio contamina o canvas e o navegador
+ * recusa gerar a imagem ("Tainted canvases may not be exported"). Bastava
+ * um time da ROOKIE no quadro pra o Copiar imagem morrer.
+ *
+ * @see escudo-time.php, que baixa o de fora uma vez e guarda aqui
+ */
+function tlEscudo(int $teamId, ?string $url, int $px = 128): string
 {
-    $url = trim((string) $url);
-    if ($url === '') return '';
-    if (!preg_match('~^/img/teams/([A-Za-z0-9._-]+)$~', $url, $m)) return $url;
-    return '/games/escudo.php?f=' . rawurlencode($m[1]) . '&s=' . $px;
+    if (trim((string) $url) === '') return '';
+    return '/escudo-time.php?t=' . $teamId . '&s=' . $px;
 }
 
 /* S no topo: a régua que todo mundo já conhece de tier list.
@@ -130,7 +137,7 @@ foreach ($times as $t) {
         'c'   => trim((string) $t['name']),
         // Sem GM, o card cai no apelido do time: card em branco não diz nada.
         'gm'  => tlGm($t['gm_nome'] ?? null, $nomesDeGm) ?: trim((string) $t['name']),
-        'img' => tlEscudo($t['photo_url']),
+        'img' => tlEscudo((int) $t['id'], $t['photo_url']),
         'pts' => (int) $t['ranking_points'],
         'q'   => $titulares[(int) $t['id']]['lista'] ?? [],
     ];
@@ -296,8 +303,7 @@ body{
   <span class="lapis">✎ editável</span>
   <button class="btn" id="verRanking">Esconder ranking</button>
   <button class="btn" id="limpar">Limpar</button>
-  <button class="btn" id="copiar">Copiar imagem</button>
-  <button class="btn primario" id="baixar">Baixar imagem</button>
+  <button class="btn primario" id="copiar">Copiar imagem</button>
 </div>
 
 <div class="ligas">
@@ -778,37 +784,12 @@ async function desenhar(){
 const paraBlob = cv => new Promise((ok, nao) =>
   cv.toBlob(b => b ? ok(b) : nao(new Error('canvas vazio')), 'image/png'));
 
-/* ── BAIXAR ────────────────────────────────────────────────
- * Era `a.href = cv.toDataURL()`, e o arquivo não chegava: o Chrome mostra
- * o download na lista e depois o Windows diz que não acha o arquivo. Um
- * data: URL de alguns megabytes não sobrevive ao caminho do download.
- *
- * Blob + createObjectURL resolve, e o <a> precisa estar NO DOM na hora do
- * clique — anchor solto é ignorado em parte dos navegadores.
- */
-document.getElementById('baixar').onclick = async () => {
-  const btn = document.getElementById('baixar');
-  const antes = btn.textContent;
-  btn.textContent = 'Gerando...';
-  try {
-    const blob = await paraBlob(await desenhar());
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'tierlist.png';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
-  } catch (e) {
-    alert('Não consegui gerar a imagem: ' + e.message);
-  }
-  btn.textContent = antes;
-};
-
 /* ── COPIAR ────────────────────────────────────────────────
- * Pra quem vai colar direto no WhatsApp sem passar pela pasta de
- * downloads. O ClipboardItem tem que ser montado ANTES do await em alguns
+ * O único botão: cola direto no WhatsApp, sem passar pela pasta de
+ * downloads. O Baixar saiu — o arquivo salvo era um desvio pra chegar no
+ * mesmo lugar.
+ *
+ * O ClipboardItem tem que ser montado ANTES do await em alguns
  * navegadores, então a promessa do blob vai dentro dele. */
 document.getElementById('copiar').onclick = async () => {
   const btn = document.getElementById('copiar');
@@ -823,7 +804,15 @@ document.getElementById('copiar').onclick = async () => {
     setTimeout(() => btn.textContent = antes, 1800);
     return;
   } catch (e) {
-    alert('Não consegui copiar (' + e.message + '). Use o Baixar imagem.');
+    /* Sem clipboard de imagem (Firefox, navegador antigo), abre a imagem
+       numa aba: o print continua possível, é só segurar e salvar. */
+    try {
+      const url = URL.createObjectURL(await paraBlob(await desenhar()));
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e2) {
+      alert('Não consegui gerar a imagem: ' + e2.message);
+    }
   }
   btn.textContent = antes;
 };
