@@ -154,16 +154,19 @@ body{
 
 /* ── o escudo ────────────────────────────────────────────── */
 .chip{
-  width:64px;height:78px;border-radius:10px;background:var(--card2);
+  width:64px;height:82px;border-radius:10px;background:var(--card2);
   border:1px solid var(--linha);display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:3px;padding:5px 3px;
   cursor:grab;touch-action:none;user-select:none;position:relative;overflow:hidden;flex:0 0 auto;
 }
 .chip img{width:42px;height:42px;object-fit:contain;pointer-events:none}
 .chip .mono{font-weight:800;font-size:15px;color:var(--txt2);pointer-events:none;height:42px;display:flex;align-items:center}
+/* Duas linhas, não uma com "...": "Villanova Valleys" virava "Villanova ..."
+   e nome cortado num card de tier list não identifica time nenhum. */
 .chip .nome{
-  font-size:9px;font-weight:700;line-height:1.05;color:var(--txt2);letter-spacing:.2px;
-  max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;
+  font-size:9px;font-weight:700;line-height:1.08;color:var(--txt2);letter-spacing:.2px;
+  width:100%;text-align:center;pointer-events:none;word-break:break-word;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
 }
 .chip.escolhido{border-color:var(--roxo);box-shadow:0 0 0 2px rgba(168,85,247,.45)}
 .chip.voando{position:fixed;z-index:999;pointer-events:none;cursor:grabbing;
@@ -213,7 +216,7 @@ body{
   .palco{grid-template-columns:1fr}
   .lateral{position:static;order:2;max-height:none}
   .rotulo{width:84px;flex:0 0 84px;font-size:10px;padding:8px 5px}
-  .chip{width:56px;height:70px;gap:2px}
+  .chip{width:56px;height:74px;gap:2px}
   .chip img{width:36px;height:36px}
   .chip .mono{height:36px;font-size:13px}
   .chip .nome{font-size:8px}
