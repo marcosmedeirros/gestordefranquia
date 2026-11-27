@@ -81,6 +81,9 @@ foreach ($times as $t) {
         'id'  => (int) $t['id'],
         'lg'  => (string) $t['league'],
         'n'   => trim(((string) $t['city']) . ' ' . ((string) $t['name'])),
+        // Só o apelido, sem a cidade: é como a liga chama o time no grupo, e
+        // é o que cabe embaixo de um escudo de 42px.
+        'c'   => trim((string) $t['name']),
         'img' => tlEscudo($t['photo_url']),
         'pts' => (int) $t['ranking_points'],
         'q'   => $titulares[(int) $t['id']]['lista'] ?? [],
@@ -151,20 +154,37 @@ body{
 
 /* ── o escudo ────────────────────────────────────────────── */
 .chip{
-  width:58px;height:58px;border-radius:10px;background:var(--card2);
-  border:1px solid var(--linha);display:flex;align-items:center;justify-content:center;
+  width:64px;height:78px;border-radius:10px;background:var(--card2);
+  border:1px solid var(--linha);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:3px;padding:5px 3px;
   cursor:grab;touch-action:none;user-select:none;position:relative;overflow:hidden;flex:0 0 auto;
 }
-.chip img{width:46px;height:46px;object-fit:contain;pointer-events:none}
-.chip .mono{font-weight:800;font-size:15px;color:var(--txt2);pointer-events:none}
+.chip img{width:42px;height:42px;object-fit:contain;pointer-events:none}
+.chip .mono{font-weight:800;font-size:15px;color:var(--txt2);pointer-events:none;height:42px;display:flex;align-items:center}
+.chip .nome{
+  font-size:9px;font-weight:700;line-height:1.05;color:var(--txt2);letter-spacing:.2px;
+  max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;
+}
 .chip.escolhido{border-color:var(--roxo);box-shadow:0 0 0 2px rgba(168,85,247,.45)}
 .chip.voando{position:fixed;z-index:999;pointer-events:none;cursor:grabbing;
   transform:scale(1.12);box-shadow:0 12px 28px rgba(0,0,0,.6);border-color:var(--roxo)}
 .chip.fantasma{opacity:.28}
 
 /* ── o ranking do lado ───────────────────────────────────── */
-.lateral{background:var(--card);border:1px solid var(--linha);border-radius:12px;padding:12px;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto}
-.lateral h2{margin:0;font-size:12px;letter-spacing:1.3px;color:var(--txt2);text-transform:uppercase}
+.palco.semranking{grid-template-columns:minmax(0,1fr)}
+.palco.semranking .lateral{display:none}
+.lateral{background:var(--card);border:1px solid var(--linha);border-radius:12px;position:sticky;top:16px;
+  max-height:calc(100vh - 32px);display:flex;flex-direction:column;overflow:hidden}
+.lateral h2{margin:0;font-size:12px;letter-spacing:1.3px;color:var(--txt2);text-transform:uppercase;
+  padding:12px 12px 9px;border-bottom:1px solid var(--linha);flex:0 0 auto}
+/* A rolagem fica SÓ na lista, não no painel inteiro: assim o título
+   "Ranking" não sobe junto e a pessoa não perde a referência do que
+   está olhando. */
+#ranking{overflow-y:auto;padding:4px 12px 12px;flex:1 1 auto;scrollbar-width:thin;scrollbar-color:#3a3a4d transparent}
+#ranking::-webkit-scrollbar{width:8px}
+#ranking::-webkit-scrollbar-track{background:transparent;margin:4px 0}
+#ranking::-webkit-scrollbar-thumb{background:#32323f;border-radius:99px;border:2px solid var(--card)}
+#ranking::-webkit-scrollbar-thumb:hover{background:var(--roxo)}
 .grupo{margin-top:12px}
 .grupo b{font-size:11px;color:var(--roxo);letter-spacing:1px}
 .linha{display:flex;align-items:center;gap:7px;padding:3px 0;font-size:12px}
@@ -193,8 +213,10 @@ body{
   .palco{grid-template-columns:1fr}
   .lateral{position:static;order:2;max-height:none}
   .rotulo{width:84px;flex:0 0 84px;font-size:10px;padding:8px 5px}
-  .chip{width:50px;height:50px}
-  .chip img{width:39px;height:39px}
+  .chip{width:56px;height:70px;gap:2px}
+  .chip img{width:36px;height:36px}
+  .chip .mono{height:36px;font-size:13px}
+  .chip .nome{font-size:8px}
   #titulo{font-size:19px}
   .lapis{flex-basis:100%}
 }
@@ -205,6 +227,7 @@ body{
 <div class="topo">
   <h1 id="titulo" contenteditable="true" spellcheck="false">Tier List da FBA</h1>
   <span class="lapis">Clique no título e nos nomes das faixas pra trocar.</span>
+  <button class="btn" id="verRanking">Esconder ranking</button>
   <button class="btn" id="limpar">Limpar</button>
   <button class="btn primario" id="baixar">Baixar imagem</button>
 </div>
@@ -216,7 +239,7 @@ body{
   <?php endforeach; ?>
 </div>
 
-<div class="palco">
+<div class="palco" id="palco">
   <div>
     <div id="faixas">
       <?php foreach ($FAIXAS as $f): ?>
@@ -235,7 +258,7 @@ body{
     </div>
   </div>
 
-  <aside class="lateral">
+  <aside class="lateral" id="lateral">
     <h2>Ranking</h2>
     <div id="ranking"></div>
   </aside>
@@ -262,6 +285,7 @@ const PADRAO = {
   titulo: 'Tier List da FBA',
   ligas: ['ELITE'],
   nomes: {},
+  ranking: true,
   faixas: { campeao: [], briga: [], meio: [], luta: [], cai: [] }
 };
 let E;
@@ -292,9 +316,10 @@ function criarChip(t){
   d.className = 'chip';
   d.dataset.id = t.id;
   d.title = t.n + ' — ' + t.lg;
-  d.innerHTML = t.img
+  const topo = t.img
     ? '<img src="' + t.img + '" alt="" draggable="false" loading="lazy">'
     : '<span class="mono">' + t.n.split(' ').map(p => p[0]).join('').slice(0,3).toUpperCase() + '</span>';
+  d.innerHTML = topo + '<span class="nome">' + t.c.replace(/[<>&]/g, '') + '</span>';
   return d;
 }
 
@@ -371,6 +396,17 @@ document.querySelectorAll('#titulo,[data-faixa-nome]').forEach(el => {
     document.execCommand('insertText', false, (ev.clipboardData || window.clipboardData).getData('text'));
   });
 });
+
+/* ── esconder o ranking ────────────────────────────────────
+   Ele é a régua, mas quem já tem opinião formada quer o quadro inteiro na
+   tela — e no print o ranking não entra. A escolha fica guardada. */
+const botaoRanking = document.getElementById('verRanking');
+function aplicarRanking(){
+  document.getElementById('palco').classList.toggle('semranking', !E.ranking);
+  botaoRanking.textContent = E.ranking ? 'Esconder ranking' : 'Mostrar ranking';
+}
+botaoRanking.onclick = () => { E.ranking = !E.ranking; aplicarRanking(); guardar(); };
+aplicarRanking();
 
 montar();
 montarRanking();
@@ -525,8 +561,8 @@ document.getElementById('baixar').onclick = async () => {
       ids:  Array.from(f.querySelectorAll('.chip')).map(c => Number(c.dataset.id))
     }));
 
-    const L = 96, ROT = 210, GAP = 10, POR_LINHA = 8, PAD = 26;
-    const alturas = linhas.map(f => Math.max(1, Math.ceil(f.ids.length / POR_LINHA)) * (L + GAP) + GAP);
+    const L = 96, NOME = 20, CEL = L + NOME, ROT = 210, GAP = 10, POR_LINHA = 8, PAD = 26;
+    const alturas = linhas.map(f => Math.max(1, Math.ceil(f.ids.length / POR_LINHA)) * (CEL + GAP) + GAP);
     const W = ROT + POR_LINHA * (L + GAP) + GAP + PAD * 2;
     const H = PAD + 76 + alturas.reduce((a, b) => a + b + GAP, 0) + 30;
 
@@ -568,13 +604,24 @@ document.getElementById('baixar').onclick = async () => {
       for (let i = 0; i < f.ids.length; i++) {
         const t = porId[f.ids[i]];
         const cx = PAD + ROT + GAP + (i % POR_LINHA) * (L + GAP);
-        const cy = y + GAP + Math.floor(i / POR_LINHA) * (L + GAP);
-        c.fillStyle = '#1b1b24'; c.fillRect(cx, cy, L, L);
+        const cy = y + GAP + Math.floor(i / POR_LINHA) * (CEL + GAP);
+        c.fillStyle = '#1b1b24'; c.fillRect(cx, cy, L, CEL);
         const im = await imagem(t && t.img);
         if (im) c.drawImage(im, cx + 8, cy + 8, L - 16, L - 16);
         else if (t) {
           c.fillStyle = '#9a9aae'; c.font = '800 22px system-ui,sans-serif'; c.textAlign = 'center';
           c.fillText(t.n.split(' ').map(p => p[0]).join('').slice(0,3).toUpperCase(), cx + L/2, cy + L/2 + 8);
+          c.textAlign = 'left';
+        }
+        if (t) {
+          // O apelido embaixo, encolhendo a fonte até caber na célula:
+          // cortar com "..." num print que vai pro grupo é pior que 10px.
+          c.textAlign = 'center';
+          c.fillStyle = '#c9c9d6';
+          let tam = 13;
+          do { c.font = '700 ' + tam + 'px system-ui,sans-serif'; tam--; }
+          while (c.measureText(t.c).width > L - 6 && tam > 7);
+          c.fillText(t.c, cx + L / 2, cy + L + 14);
           c.textAlign = 'left';
         }
       }
