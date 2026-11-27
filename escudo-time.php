@@ -94,8 +94,11 @@ curl_setopt_array($ch, [
     CURLOPT_CONNECTTIMEOUT => 4,
     CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
     CURLOPT_REDIR_PROTOCOLS=> CURLPROTO_HTTP | CURLPROTO_HTTPS,
-    // Cliente genérico: nada que identifique a liga ou quem está olhando.
-    CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; image-fetch)',
+    /* SEM User-Agent PRÓPRIO, de propósito.
+       Mandava 'Mozilla/5.0 (compatible; image-fetch)' e o cdn.nba.com
+       derrubava a conexão: "HTTP/2 stream 1 reset by server". O padrão do
+       curl passa. Nada aqui identifica a liga nem quem está olhando — e é
+       assim que tem que continuar. */
     CURLOPT_BUFFERSIZE     => 65536,
     CURLOPT_NOPROGRESS     => false,
     // Corta no meio do download se o arquivo for grande demais.
