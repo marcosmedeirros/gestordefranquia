@@ -24,10 +24,48 @@ $LIGAS = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 /* Vem tudo das quatro ligas de uma vez, e quem filtra é o navegador.
    Trocar de liga é um clique que a pessoa dá o tempo todo enquanto monta;
    ir ao servidor a cada clique faria a tela piscar por nada. */
-$times = $pdo->query("SELECT id, league, city, name, photo_url, ranking_points
-                        FROM teams
-                       WHERE league IN ('ELITE','NEXT','RISE','ROOKIE')
-                    ORDER BY league, ranking_points DESC, name ASC")->fetchAll(PDO::FETCH_ASSOC);
+$times = $pdo->query("SELECT t.id, t.league, t.city, t.name, t.photo_url, t.ranking_points,
+                             u.name AS gm_nome
+                        FROM teams t
+                        LEFT JOIN users u ON u.id = t.user_id
+                       WHERE t.league IN ('ELITE','NEXT','RISE','ROOKIE')
+                    ORDER BY t.league, t.ranking_points DESC, t.name ASC")->fetchAll(PDO::FETCH_ASSOC);
+
+/**
+ * O PRIMEIRO NOME DO GM — e o sobrenome só quando ele é preciso.
+ *
+ * "Marcos Medeiros" vira "Marcos", que é como a liga chama as pessoas. Só
+ * que há três Caios na ELITE (Gomes, Cardoso e Motta): três cards escritos
+ * "Caio" não identificam ninguém, e o botão existe justamente pra
+ * identificar. Quando o primeiro nome se repete, entra a inicial do
+ * sobrenome — "Caio G.", "Caio M.".
+ *
+ * A contagem é sobre TODAS as ligas de uma vez. Decidir por liga faria o
+ * mesmo GM aparecer como "Caio" numa tier list e "Caio M." noutra,
+ * dependendo de quais ligas estão marcadas na hora.
+ *
+ * @param array<int,string> $todos  todos os nomes de GM, pra achar repetido
+ */
+function tlGm(?string $completo, array $todos): string
+{
+    $completo = trim((string) $completo);
+    if ($completo === '') return '';
+
+    $partes = preg_split('/\s+/', $completo);
+    $primeiro = $partes[0];
+
+    $repetido = 0;
+    foreach ($todos as $outro) {
+        $p = preg_split('/\s+/', trim($outro));
+        if ($p && mb_strtolower($p[0]) === mb_strtolower($primeiro)) $repetido++;
+    }
+    if ($repetido <= 1 || count($partes) < 2) return $primeiro;
+
+    return $primeiro . ' ' . mb_strtoupper(mb_substr(end($partes), 0, 1)) . '.';
+}
+
+$nomesDeGm = [];
+foreach ($times as $t) if (trim((string) $t['gm_nome']) !== '') $nomesDeGm[] = (string) $t['gm_nome'];
 
 /* O QUINTETO DE CADA TIME, tudo junto.
    São mais de cem times; uma consulta por clique seria uma ida ao servidor
@@ -90,6 +128,8 @@ foreach ($times as $t) {
         // Só o apelido, sem a cidade: é como a liga chama o time no grupo, e
         // é o que cabe embaixo de um escudo de 42px.
         'c'   => trim((string) $t['name']),
+        // Sem GM, o card cai no apelido do time: card em branco não diz nada.
+        'gm'  => tlGm($t['gm_nome'] ?? null, $nomesDeGm) ?: trim((string) $t['name']),
         'img' => tlEscudo($t['photo_url']),
         'pts' => (int) $t['ranking_points'],
         'q'   => $titulares[(int) $t['id']]['lista'] ?? [],
@@ -176,7 +216,7 @@ body{
 
 /* ── o escudo ────────────────────────────────────────────── */
 .chip{
-  width:64px;height:82px;border-radius:10px;background:var(--card2);
+  width:72px;height:90px;border-radius:10px;background:var(--card2);
   border:1px solid var(--linha);display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:3px;padding:5px 3px;
   cursor:grab;touch-action:none;user-select:none;position:relative;overflow:hidden;flex:0 0 auto;
@@ -186,7 +226,7 @@ body{
 /* Duas linhas, não uma com "...": "Villanova Valleys" virava "Villanova ..."
    e nome cortado num card de tier list não identifica time nenhum. */
 .chip .nome{
-  font-size:9px;font-weight:700;line-height:1.08;color:var(--txt2);letter-spacing:.2px;
+  font-size:11px;font-weight:700;line-height:1.1;color:#c9c9d6;letter-spacing:.1px;
   width:100%;text-align:center;pointer-events:none;word-break:break-word;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
 }
@@ -239,10 +279,10 @@ body{
   .lateral{position:static;order:2;max-height:none}
   .rotulo{width:76px;flex:0 0 76px;font-size:22px;padding:8px 5px}
   .rotulo.texto{font-size:10px}
-  .chip{width:56px;height:74px;gap:2px}
+  .chip{width:62px;height:80px;gap:2px}
   .chip img{width:36px;height:36px}
   .chip .mono{height:36px;font-size:13px}
-  .chip .nome{font-size:8px}
+  .chip .nome{font-size:10px}
   #titulo{font-size:19px}
   .lapis{flex-basis:100%}
 }
@@ -253,6 +293,7 @@ body{
 <div class="topo">
   <h1 id="titulo" contenteditable="true" spellcheck="false" data-vazio="Coloque seu tema aqui"></h1>
   <span class="lapis">✎ editável</span>
+  <button class="btn" id="modoNome">Mostrar GMs</button>
   <button class="btn" id="verRanking">Esconder ranking</button>
   <button class="btn" id="limpar">Limpar</button>
   <button class="btn" id="copiar">Copiar imagem</button>
@@ -316,6 +357,7 @@ const PADRAO = {
   // Escondido de saída: o ranking é consulta, o quadro é o que a pessoa
   // veio fazer — e ele não entra no print.
   ranking: false,
+  modo: 'time',          // 'time' = apelido do clube · 'gm' = quem comanda
   v: 3,
   faixas: { campeao: [], briga: [], meio: [], luta: [], cai: [] }
 };
@@ -368,6 +410,11 @@ function guardar(){
 const naLiga = t => E.ligas.indexOf(t.lg) !== -1;
 
 /* ── monta os escudos ─────────────────────────────────────── */
+/* O que vai escrito embaixo do escudo: o apelido do clube ou quem o
+   comanda. A mesma função serve a tela e ao print, pra os dois nunca
+   discordarem. */
+const rotuloDe = t => (E.modo === 'gm' ? t.gm : t.c);
+
 function criarChip(t){
   const d = document.createElement('div');
   d.className = 'chip';
@@ -376,7 +423,7 @@ function criarChip(t){
   const topo = t.img
     ? '<img src="' + t.img + '" alt="" draggable="false" loading="lazy">'
     : '<span class="mono">' + t.n.split(' ').map(p => p[0]).join('').slice(0,3).toUpperCase() + '</span>';
-  d.innerHTML = topo + '<span class="nome">' + t.c.replace(/[<>&]/g, '') + '</span>';
+  d.innerHTML = topo + '<span class="nome">' + rotuloDe(t).replace(/[<>&]/g, '') + '</span>';
   return d;
 }
 
@@ -469,6 +516,27 @@ function aplicarRanking(){
 }
 botaoRanking.onclick = () => { E.ranking = !E.ranking; aplicarRanking(); guardar(); };
 aplicarRanking();
+
+/* ── time ou GM ────────────────────────────────────────────
+   A mesma tier list responde duas perguntas diferentes: "que time é bom?"
+   e "que GM é bom?". Trocar o rótulo é o bastante — os escudos continuam
+   sendo a cara de cada um. */
+const botaoModo = document.getElementById('modoNome');
+function aplicarModo(){
+  botaoModo.textContent = E.modo === 'gm' ? 'Mostrar times' : 'Mostrar GMs';
+}
+botaoModo.onclick = () => {
+  E.modo = E.modo === 'gm' ? 'time' : 'gm';
+  aplicarModo();
+  // Só o texto muda; a montagem fica onde está.
+  document.querySelectorAll('.chip').forEach(c => {
+    const t = porId[c.dataset.id];
+    const n = c.querySelector('.nome');
+    if (t && n) n.textContent = rotuloDe(t);
+  });
+  guardar();
+};
+aplicarModo();
 
 montar();
 montarRanking();
@@ -621,7 +689,7 @@ async function desenhar(){
       ids:  Array.from(f.querySelectorAll('.chip')).map(c => Number(c.dataset.id))
     }));
 
-    const L = 96, NOME = 20, CEL = L + NOME, ROT = 210, GAP = 10, POR_LINHA = 8, PAD = 26;
+    const L = 96, NOME = 23, CEL = L + NOME, ROT = 210, GAP = 10, POR_LINHA = 8, PAD = 26;
     const alturas = linhas.map(f => Math.max(1, Math.ceil(f.ids.length / POR_LINHA)) * (CEL + GAP) + GAP);
     const W = ROT + POR_LINHA * (L + GAP) + GAP + PAD * 2;
     const H = PAD + 76 + alturas.reduce((a, b) => a + b + GAP, 0) + 30;
@@ -678,14 +746,15 @@ async function desenhar(){
           c.textAlign = 'left';
         }
         if (t) {
-          // O apelido embaixo, encolhendo a fonte até caber na célula:
-          // cortar com "..." num print que vai pro grupo é pior que 10px.
+          // O rótulo embaixo, encolhendo a fonte até caber na célula:
+          // cortar com "..." num print que vai pro grupo é pior que 9px.
+          const rot = rotuloDe(t);
           c.textAlign = 'center';
           c.fillStyle = '#c9c9d6';
-          let tam = 13;
+          let tam = 16;
           do { c.font = '700 ' + tam + 'px system-ui,sans-serif'; tam--; }
-          while (c.measureText(t.c).width > L - 6 && tam > 7);
-          c.fillText(t.c, cx + L / 2, cy + L + 14);
+          while (c.measureText(rot).width > L - 6 && tam > 8);
+          c.fillText(rot, cx + L / 2, cy + L + 15);
           c.textAlign = 'left';
         }
       }
