@@ -65,14 +65,20 @@ function tlEscudo(?string $url, int $px = 128): string
     return '/games/escudo.php?f=' . rawurlencode($m[1]) . '&s=' . $px;
 }
 
-/* CAMPEÃO em cima: é a convenção de tier list. Os nomes são só o PADRÃO —
-   quem monta renomeia na tela, e o que ele escrever vale daí em diante. */
+/* S no topo: a régua que todo mundo já conhece de tier list.
+   Nomeava CAMPEÃO / BRIGA PELO TÍTULO / ... e isso tinha dois problemas —
+   amarrava a página a um tema só (campeonato), e um nome já pronto e
+   plausível não convida ninguém a trocar. Letra é régua vazia: quem monta
+   escreve o que quiser por cima.
+
+   Os ids NÃO mudam junto. Eles são a chave do que está guardado no
+   navegador de quem já montou, e renomear a chave apagaria a montagem. */
 $FAIXAS = [
-    ['id' => 'campeao', 'nome' => 'CAMPEÃO',             'cor' => '#f5c542'],
-    ['id' => 'briga',   'nome' => 'BRIGA PELO TÍTULO',   'cor' => '#6ee7a8'],
-    ['id' => 'meio',    'nome' => 'MEIO DE TABELA',      'cor' => '#7cc4ff'],
-    ['id' => 'luta',    'nome' => 'VAI LUTAR ATÉ O FIM', 'cor' => '#ffa94d'],
-    ['id' => 'cai',     'nome' => 'CAI',                 'cor' => '#ff6b6b'],
+    ['id' => 'campeao', 'nome' => 'S', 'cor' => '#f5c542'],
+    ['id' => 'briga',   'nome' => 'A', 'cor' => '#6ee7a8'],
+    ['id' => 'meio',    'nome' => 'B', 'cor' => '#7cc4ff'],
+    ['id' => 'luta',    'nome' => 'C', 'cor' => '#ffa94d'],
+    ['id' => 'cai',     'nome' => 'F', 'cor' => '#ff6b6b'],
 ];
 
 $dados = [];
@@ -112,12 +118,18 @@ body{
   padding:16px; overflow-x:hidden;
 }
 .topo{max-width:1400px;margin:0 auto 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+/* O TRACEJADO FICA SEMPRE VISÍVEL, não só no hover.
+   Com o sublinhado só aparecendo ao passar o mouse, ninguém descobria que
+   dava pra editar — e no celular não existe hover, então lá não aparecia
+   nunca. */
 #titulo{
   margin:0;font-size:23px;letter-spacing:.4px;font-weight:800;
-  border-bottom:1px dashed transparent;padding:2px 4px;border-radius:5px;min-width:60px;outline:none;
+  border-bottom:1px dashed #3d3d4e;padding:2px 6px;border-radius:5px;min-width:90px;outline:none;
 }
-#titulo:hover{border-bottom-color:var(--linha)}
+#titulo:hover{border-bottom-color:var(--roxo)}
 #titulo:focus{border-bottom-color:var(--roxo);background:var(--card)}
+/* Vazio mostra o convite, em vez de um título pronto que ninguém troca. */
+#titulo:empty::before{content:attr(data-vazio);color:#5c5c72;font-weight:600;font-style:italic}
 .lapis{color:var(--txt2);font-size:12px;flex:1 1 150px}
 .btn{
   background:var(--card2);color:var(--txt);border:1px solid var(--linha);
@@ -141,10 +153,20 @@ body{
 .faixa{display:flex;background:var(--card);border:1px solid var(--linha);border-radius:12px;margin-bottom:10px;overflow:hidden}
 .rotulo{
   width:118px;flex:0 0 118px;display:flex;align-items:center;justify-content:center;
-  text-align:center;font-weight:800;font-size:12px;line-height:1.15;padding:10px 7px;
+  text-align:center;font-weight:800;font-size:26px;line-height:1.15;padding:10px 7px;
   color:#0b0b0f;letter-spacing:.3px;outline:none;word-break:break-word;cursor:text;
+  position:relative;
 }
+/* Texto longo vira letra miúda: quem troca "S" por "BRIGA PELO TÍTULO"
+   precisa que caiba, e quem fica na letra quer ela grande. */
+.rotulo.texto{font-size:12px}
 .rotulo:focus{box-shadow:inset 0 0 0 2px rgba(0,0,0,.45)}
+/* O lápis no canto é o que diz "isto se edita" sem gastar uma legenda. */
+.rotulo::after{
+  content:"✎";position:absolute;top:3px;right:5px;font-size:10px;
+  opacity:.4;font-weight:400;pointer-events:none;
+}
+.rotulo:focus::after{opacity:0}
 .zona{flex:1;min-height:84px;display:flex;flex-wrap:wrap;gap:7px;padding:9px;align-content:flex-start}
 .zona.alvo{background:rgba(168,85,247,.14);outline:2px dashed var(--roxo);outline-offset:-5px}
 
@@ -215,7 +237,8 @@ body{
   body{padding:11px}
   .palco{grid-template-columns:1fr}
   .lateral{position:static;order:2;max-height:none}
-  .rotulo{width:84px;flex:0 0 84px;font-size:10px;padding:8px 5px}
+  .rotulo{width:76px;flex:0 0 76px;font-size:22px;padding:8px 5px}
+  .rotulo.texto{font-size:10px}
   .chip{width:56px;height:74px;gap:2px}
   .chip img{width:36px;height:36px}
   .chip .mono{height:36px;font-size:13px}
@@ -228,8 +251,8 @@ body{
 <body>
 
 <div class="topo">
-  <h1 id="titulo" contenteditable="true" spellcheck="false">Tier List da FBA</h1>
-  <span class="lapis">Clique no título e nos nomes das faixas pra trocar.</span>
+  <h1 id="titulo" contenteditable="true" spellcheck="false" data-vazio="Coloque seu tema aqui"></h1>
+  <span class="lapis">✎ o título e as letras S/A/B/C/F são editáveis — clique e escreva</span>
   <button class="btn" id="verRanking">Esconder ranking</button>
   <button class="btn" id="limpar">Limpar</button>
   <button class="btn primario" id="baixar">Baixar imagem</button>
@@ -249,6 +272,7 @@ body{
       <div class="faixa">
         <div class="rotulo" contenteditable="true" spellcheck="false"
              data-faixa-nome="<?= htmlspecialchars($f['id']) ?>"
+             data-padrao="<?= htmlspecialchars($f['nome']) ?>"
              style="background:<?= htmlspecialchars($f['cor']) ?>"><?= htmlspecialchars($f['nome']) ?></div>
         <div class="zona" data-faixa="<?= htmlspecialchars($f['id']) ?>"></div>
       </div>
@@ -285,7 +309,7 @@ TIMES.forEach(t => porId[t.id] = t);
    Tudo no navegador de quem monta: a montagem, os nomes que ele deu às
    faixas, o tema e as ligas escolhidas. */
 const PADRAO = {
-  titulo: 'Tier List da FBA',
+  titulo: '',
   ligas: ['ELITE'],
   nomes: {},
   ranking: true,
@@ -304,7 +328,7 @@ function guardar(){
     f[z.dataset.faixa] = Array.from(z.querySelectorAll('.chip')).map(c => Number(c.dataset.id));
   });
   E.faixas = f;
-  E.titulo = document.getElementById('titulo').textContent.trim() || PADRAO.titulo;
+  E.titulo = document.getElementById('titulo').textContent.trim();
   const nomes = {};
   document.querySelectorAll('[data-faixa-nome]').forEach(r => nomes[r.dataset.faixaNome] = r.textContent.trim());
   E.nomes = nomes;
@@ -379,18 +403,23 @@ document.querySelectorAll('.liga').forEach(b => {
 });
 
 /* ── título e nomes das faixas ────────────────────────────── */
-document.getElementById('titulo').textContent = E.titulo || PADRAO.titulo;
+document.getElementById('titulo').textContent = E.titulo || '';
 document.querySelectorAll('[data-faixa-nome]').forEach(r => {
   const n = E.nomes && E.nomes[r.dataset.faixaNome];
   if (n) r.textContent = n;
+  ajustarRotulo(r);
 });
+/* Uma letra sozinha fica grande; qualquer coisa maior vira texto miúdo. */
+function ajustarRotulo(r){ r.classList.toggle('texto', r.textContent.trim().length > 2); }
+
 // Enter fecha a edição em vez de abrir linha nova dentro do rótulo.
 document.querySelectorAll('#titulo,[data-faixa-nome]').forEach(el => {
   el.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); el.blur(); } });
+  el.addEventListener('input', () => { if (el.dataset.faixaNome) ajustarRotulo(el); });
   el.addEventListener('blur', () => {
-    if (!el.textContent.trim()) {
-      el.textContent = el.id === 'titulo' ? PADRAO.titulo : (el.dataset.faixaNome || '').toUpperCase();
-    }
+    // Faixa sem nome não é faixa; título vazio só mostra o convite de novo.
+    if (!el.textContent.trim() && el.dataset.padrao) el.textContent = el.dataset.padrao;
+    if (el.dataset.faixaNome) ajustarRotulo(el);
     guardar();
   });
   // Cola só texto: colar de outra página traria HTML e cor junto.
@@ -574,7 +603,8 @@ document.getElementById('baixar').onclick = async () => {
     const c = cv.getContext('2d');
     c.fillStyle = '#0b0b0f'; c.fillRect(0, 0, W, H);
     c.fillStyle = '#f2f2f7'; c.font = '700 34px system-ui,sans-serif';
-    c.fillText(document.getElementById('titulo').textContent.trim(), PAD, PAD + 36);
+    // Sem tema escrito, o print leva o nome da página — e não o convite.
+    c.fillText(document.getElementById('titulo').textContent.trim() || 'Tier List da FBA', PAD, PAD + 36);
     c.fillStyle = '#9a9aae'; c.font = '16px system-ui,sans-serif';
     c.fillText(E.ligas.join(' · ') + '  —  fbabrasil.com.br/tierlist.php', PAD, PAD + 62);
 
@@ -590,7 +620,10 @@ document.getElementById('baixar').onclick = async () => {
       const f = linhas[k], h = alturas[k];
       c.fillStyle = '#14141b'; c.fillRect(PAD, y, W - PAD * 2, h);
       c.fillStyle = f.cor || '#888'; c.fillRect(PAD, y, ROT, h);
-      c.fillStyle = '#0b0b0f'; c.font = '800 17px system-ui,sans-serif';
+      c.fillStyle = '#0b0b0f';
+      // Letra sozinha grande, texto miúdo — mesma régra da tela.
+      const tamRot = f.nome.trim().length <= 2 ? 52 : 17;
+      c.font = '800 ' + tamRot + 'px system-ui,sans-serif';
       c.textAlign = 'center';
       const palavras = f.nome.split(' ');
       const ls = [];
@@ -601,7 +634,7 @@ document.getElementById('baixar').onclick = async () => {
         else atual = t;
       });
       if (atual) ls.push(atual);
-      ls.forEach((ln, i) => c.fillText(ln, PAD + ROT / 2, y + h / 2 + 6 + (i - (ls.length - 1) / 2) * 20));
+      ls.forEach((ln, i) => c.fillText(ln, PAD + ROT / 2, y + h / 2 + tamRot / 3 + (i - (ls.length - 1) / 2) * (tamRot + 3)));
       c.textAlign = 'left';
 
       for (let i = 0; i < f.ids.length; i++) {
