@@ -1191,6 +1191,10 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             transition: color var(--t) var(--ease), border-color var(--t) var(--ease);
         }
         .querido-btn:hover { color: var(--red); border-color: var(--border-red); }
+        a.querido-btn { text-decoration: none; }
+        /* Dois botões onde cabia um: em tela estreita eles quebram pra baixo
+           em vez de espremer o título do card. */
+        .querido-acoes { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 
         .quer-overlay { position: fixed; inset: 0; z-index: 5100; background: rgba(0,0,0,.72); backdrop-filter: blur(4px);
             display: flex; align-items: flex-start; justify-content: center; padding: 24px 16px; overflow-y: auto; }
@@ -1897,9 +1901,18 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                 <div class="bc span-3" style="animation-delay:.25s">
                     <div class="bc-head">
                         <div class="bc-title"><i class="bi bi-emoji-heart-eyes-fill"></i> Queridômetro da <?= htmlspecialchars($queridoLeague) ?></div>
-                        <button type="button" class="querido-btn" onclick="queridoAbrirModal()">
-                            <?= $precisaVotarQuerido ? 'Votar' : 'Ver / votar' ?> <i class="bi bi-arrow-right"></i>
-                        </button>
+                        <div class="querido-acoes">
+                            <?php /* A tier list mora aqui porque é a mesma pergunta do
+                                     queridômetro — "o que você acha de quem?" —, só que
+                                     sobre times em vez de pessoas. É pública e não pede
+                                     login, mas quem chega por este card já está logado. */ ?>
+                            <a class="querido-btn" href="/tierlist.php">
+                                Tier list <i class="bi bi-bar-chart-steps"></i>
+                            </a>
+                            <button type="button" class="querido-btn" onclick="queridoAbrirModal()">
+                                <?= $precisaVotarQuerido ? 'Votar' : 'Ver / votar' ?> <i class="bi bi-arrow-right"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="bc-body">
                         <div class="querido-lista">
