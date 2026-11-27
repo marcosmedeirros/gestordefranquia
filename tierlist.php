@@ -255,6 +255,7 @@ body{
   <span class="lapis">✎ o título e as letras S/A/B/C/F são editáveis — clique e escreva</span>
   <button class="btn" id="verRanking">Esconder ranking</button>
   <button class="btn" id="limpar">Limpar</button>
+  <button class="btn" id="copiar">Copiar imagem</button>
   <button class="btn primario" id="baixar">Baixar imagem</button>
 </div>
 
@@ -312,7 +313,9 @@ const PADRAO = {
   titulo: '',
   ligas: ['ELITE'],
   nomes: {},
-  ranking: true,
+  // Escondido de saída: o ranking é consulta, o quadro é o que a pessoa
+  // veio fazer — e ele não entra no print.
+  ranking: false,
   faixas: { campeao: [], briga: [], meio: [], luta: [], cai: [] }
 };
 let E;
@@ -583,10 +586,8 @@ document.getElementById('limpar').onclick = () => {
    Desenhada no canvas na mão, sem biblioteca: os escudos vêm do mesmo
    domínio (/games/escudo.php), então o canvas não fica contaminado e o
    toDataURL funciona. */
-document.getElementById('baixar').onclick = async () => {
-  const btn = document.getElementById('baixar');
-  btn.textContent = 'Gerando...';
-  try {
+async function desenhar(){
+  {
     const linhas = Array.from(document.querySelectorAll('.faixa')).map(f => ({
       nome: f.querySelector('.rotulo').textContent.trim(),
       cor:  f.querySelector('.rotulo').style.background,
@@ -663,15 +664,62 @@ document.getElementById('baixar').onclick = async () => {
       }
       y += h + GAP;
     }
+    return cv;
+  }
+}
 
+/** O canvas vira Blob — não data: URL. @see os botões abaixo */
+const paraBlob = cv => new Promise((ok, nao) =>
+  cv.toBlob(b => b ? ok(b) : nao(new Error('canvas vazio')), 'image/png'));
+
+/* ── BAIXAR ────────────────────────────────────────────────
+ * Era `a.href = cv.toDataURL()`, e o arquivo não chegava: o Chrome mostra
+ * o download na lista e depois o Windows diz que não acha o arquivo. Um
+ * data: URL de alguns megabytes não sobrevive ao caminho do download.
+ *
+ * Blob + createObjectURL resolve, e o <a> precisa estar NO DOM na hora do
+ * clique — anchor solto é ignorado em parte dos navegadores.
+ */
+document.getElementById('baixar').onclick = async () => {
+  const btn = document.getElementById('baixar');
+  const antes = btn.textContent;
+  btn.textContent = 'Gerando...';
+  try {
+    const blob = await paraBlob(await desenhar());
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
+    a.href = url;
     a.download = 'tierlist.png';
-    a.href = cv.toDataURL('image/png');
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
   } catch (e) {
     alert('Não consegui gerar a imagem: ' + e.message);
   }
-  btn.textContent = 'Baixar imagem';
+  btn.textContent = antes;
+};
+
+/* ── COPIAR ────────────────────────────────────────────────
+ * Pra quem vai colar direto no WhatsApp sem passar pela pasta de
+ * downloads. O ClipboardItem tem que ser montado ANTES do await em alguns
+ * navegadores, então a promessa do blob vai dentro dele. */
+document.getElementById('copiar').onclick = async () => {
+  const btn = document.getElementById('copiar');
+  const antes = btn.textContent;
+  btn.textContent = 'Gerando...';
+  try {
+    if (!navigator.clipboard || !window.ClipboardItem) throw new Error('navegador sem suporte');
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'image/png': desenhar().then(paraBlob) })
+    ]);
+    btn.textContent = 'Copiado!';
+    setTimeout(() => btn.textContent = antes, 1800);
+    return;
+  } catch (e) {
+    alert('Não consegui copiar (' + e.message + '). Use o Baixar imagem.');
+  }
+  btn.textContent = antes;
 };
 </script>
 </body>
